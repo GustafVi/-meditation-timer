@@ -76,8 +76,25 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+// Play a silent buffer to fully unlock audio on iOS
+function unlockAudio() {
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+  const buf = ctx.createBuffer(1, 1, 22050);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(0);
+}
+
+function ensureAudioResumed() {
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
 function playIntervalChime() {
   try {
+    ensureAudioResumed();
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -94,6 +111,7 @@ function playIntervalChime() {
 
 function playSessionChime() {
   try {
+    ensureAudioResumed();
     const ctx = getAudioCtx();
     const freqs = [523.25, 659.25, 783.99]; // C5 E5 G5
     freqs.forEach((freq, i) => {
@@ -211,8 +229,7 @@ function startSession() {
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
 
   // Unlock AudioContext on user gesture (required for iOS Safari)
-  const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
+  unlockAudio();
 
   // Switch screens
   setupScreen.classList.add('hidden');
