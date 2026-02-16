@@ -72,10 +72,9 @@ function showError(msg) {
 }
 
 // ===== Audio =====
-// Unlock audio on the very first touch anywhere on the page.
-// iOS Safari requires AudioContext creation + resume + playback
-// to all happen inside a user-initiated touch event handler.
 let audioUnlocked = false;
+let scheduledNodes = [];  // track scheduled oscillators for cancel on pause/reset
+let keepAliveOsc = null;  // silent oscillator to keep AudioContext alive during screen lock
 
 function getAudioCtx() {
   if (!audioCtx) {
@@ -88,10 +87,9 @@ function unlockAudio() {
   if (audioUnlocked) return;
   const ctx = getAudioCtx();
   ctx.resume().then(() => {
-    // Play a short silent tone to fully activate the audio pipeline
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    gain.gain.value = 0;          // silent
+    gain.gain.value = 0;
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(0);
@@ -100,45 +98,102 @@ function unlockAudio() {
   });
 }
 
-// Attach unlock to first user interaction (touchstart fires before click on iOS)
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
+// Start a silent tone to keep AudioContext alive when screen locks
+function startKeepAlive() {
+  const ctx = getAudioCtx();
+  keepAliveOsc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.001; // near-silent — enough to keep audio session alive
+  keepAliveOsc.connect(gain);
+  gain.connect(ctx.destination);
+  keepAliveOsc.start(0);
+}
+
+function stopKeepAlive() {
+  if (keepAliveOsc) {
+    try { keepAliveOsc.stop(); } catch (e) {}
+    keepAliveOsc = null;
+  }
+}
+
+// Schedule an interval chime at a specific AudioContext time
+function scheduleIntervalChime(atTime) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 659.25; // E5
+  gain.gain.setValueAtTime(0.18, atTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, atTime + 0.8);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(atTime);
+  osc.stop(atTime + 0.8);
+  scheduledNodes.push(osc);
+}
+
+// Schedule the session-complete chime at a specific AudioContext time
+function scheduleSessionChime(atTime) {
+  const ctx = getAudioCtx();
+  const freqs = [523.25, 659.25, 783.99]; // C5 E5 G5
+  freqs.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, atTime + i * 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, atTime + i * 0.3 + 2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(atTime + i * 0.3);
+    osc.stop(atTime + i * 0.3 + 2);
+    scheduledNodes.push(osc);
+  });
+}
+
+// Pre-schedule all chimes for the session
+function scheduleAllChimes() {
+  cancelScheduledChimes();
+  const ctx = getAudioCtx();
+  const baseTime = ctx.currentTime;
+  let accumulated = 0;
+  for (let i = 0; i < intervals.length; i++) {
+    accumulated += intervals[i].seconds;
+    if (i < intervals.length - 1) {
+      // Interval boundary chime
+      scheduleIntervalChime(baseTime + accumulated);
+    } else {
+      // Final session chime
+      scheduleSessionChime(baseTime + accumulated);
+    }
+  }
+}
+
+function cancelScheduledChimes() {
+  scheduledNodes.forEach(node => {
+    try { node.stop(); } catch (e) {}
+  });
+  scheduledNodes = [];
+}
+
+// Fallback chime for when JS is active (e.g., screen wake catch-up)
 function playIntervalChime() {
   try {
     const ctx = getAudioCtx();
     ctx.resume();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 659.25; // E5
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.8);
-  } catch (e) { /* silent */ }
+    scheduleIntervalChime(ctx.currentTime);
+  } catch (e) {}
 }
 
 function playSessionChime() {
   try {
     const ctx = getAudioCtx();
     ctx.resume();
-    const freqs = [523.25, 659.25, 783.99]; // C5 E5 G5
-    freqs.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.3);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.3 + 2);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.3);
-      osc.stop(ctx.currentTime + i * 0.3 + 2);
-    });
-  } catch (e) { /* silent */ }
+    scheduleSessionChime(ctx.currentTime);
+  } catch (e) {}
 }
 
 // ===== Setup: total duration =====
@@ -253,9 +308,15 @@ function startSession() {
   sessionStartTime = Date.now();
   isRunning = true;
 
+  // Pre-schedule all chimes via Web Audio (works during screen lock)
+  const ctx = getAudioCtx();
+  ctx.resume();
+  scheduleAllChimes();
+  startKeepAlive();
+
   renderTimeline();
   tick(); // render immediately
-  timerInterval = setInterval(tick, 250); // check 4x/sec for accuracy
+  timerInterval = setInterval(tick, 250);
   pauseBtn.textContent = 'Pause';
   timerDisplay.classList.add('active');
 }
@@ -282,19 +343,14 @@ function tick() {
 
   const state = getTimerState();
 
-  // Session complete — stop immediately, chime once
+  // Session complete
   if (state.done) {
     clearInterval(timerInterval);
     timerInterval = null;
+    stopKeepAlive();
+    // Chimes already pre-scheduled via Web Audio — just update UI
     completeSession();
     return;
-  }
-
-  // Chime once per interval transition
-  // When we move from interval 0 to 1, lastChimedInterval goes from -1 to 0
-  while (lastChimedInterval < state.idx - 1) {
-    lastChimedInterval++;
-    playIntervalChime();
   }
 
   currentIntervalIndex = state.idx;
@@ -345,11 +401,31 @@ function togglePause() {
     clearInterval(timerInterval);
     pausedElapsed += Date.now() - sessionStartTime;
     isRunning = false;
+    cancelScheduledChimes();
+    stopKeepAlive();
     pauseBtn.textContent = 'Resume';
     timerDisplay.classList.remove('active');
   } else {
     sessionStartTime = Date.now();
     isRunning = true;
+    // Reschedule remaining chimes from current position
+    const ctx = getAudioCtx();
+    ctx.resume();
+    cancelScheduledChimes();
+    const baseTime = ctx.currentTime;
+    const state = getTimerState();
+    let accumulated = 0;
+    for (let i = 0; i < intervals.length; i++) {
+      accumulated += intervals[i].seconds;
+      const chimeSec = accumulated - state.totalElapsed;
+      if (chimeSec <= 0) continue;
+      if (i < intervals.length - 1) {
+        scheduleIntervalChime(baseTime + chimeSec);
+      } else {
+        scheduleSessionChime(baseTime + chimeSec);
+      }
+    }
+    startKeepAlive();
     pauseBtn.textContent = 'Pause';
     timerDisplay.classList.add('active');
     timerInterval = setInterval(tick, 250);
@@ -359,6 +435,8 @@ function togglePause() {
 function resetToSetup() {
   clearInterval(timerInterval);
   isRunning = false;
+  cancelScheduledChimes();
+  stopKeepAlive();
   timerDisplay.classList.remove('active');
   progressCircle.style.strokeDashoffset = 0;
   timerScreen.classList.add('hidden');
@@ -378,7 +456,7 @@ function completeSession() {
   localStorage.setItem('meditationSessions', sessions);
   sessionCountEl.textContent = sessions;
 
-  playSessionChime();
+  // Chimes are pre-scheduled via Web Audio — no need to trigger here
 
   // Mark all intervals as done in timeline
   intervalTimeline.querySelectorAll('.timeline-chip').forEach(chip => {
