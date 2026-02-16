@@ -21,17 +21,8 @@
       <div id="setup-screen">
         <section class="setup-section">
           <h2 class="section-label">Total Duration</h2>
-          <div class="duration-selector">
-            <button class="duration-btn" data-minutes="5">5 min</button>
-            <button class="duration-btn active" data-minutes="10">10 min</button>
-            <button class="duration-btn" data-minutes="15">15 min</button>
-            <button class="duration-btn" data-minutes="20">20 min</button>
-            <button class="duration-btn" data-minutes="30">30 min</button>
-          </div>
-          <div class="custom-duration">
-            <input type="number" id="custom-minutes" min="1" max="180" placeholder="Custom min">
-            <button id="custom-duration-btn" class="duration-btn">Set</button>
-          </div>
+          <label for="total-minutes" class="duration-field-label">Minutes</label>
+          <input type="number" id="total-minutes" min="1" max="180" value="10" class="duration-input">
         </section>
 
         <section class="setup-section">

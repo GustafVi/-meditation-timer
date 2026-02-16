@@ -3,9 +3,7 @@ const setupScreen = document.getElementById('setup-screen');
 const timerScreen = document.getElementById('timer-screen');
 
 // Setup
-const durationBtns = document.querySelectorAll('.duration-btn[data-minutes]');
-const customMinutesInput = document.getElementById('custom-minutes');
-const customDurationBtn = document.getElementById('custom-duration-btn');
+const totalMinutesInput = document.getElementById('total-minutes');
 const remainingTimeEl = document.getElementById('remaining-time');
 const intervalMinInput = document.getElementById('interval-minutes');
 const intervalSecInput = document.getElementById('interval-seconds');
@@ -114,29 +112,15 @@ function playSessionChime() {
 }
 
 // ===== Setup: total duration =====
-function selectTotalDuration(minutes) {
-  totalSeconds = minutes * 60;
-  durationBtns.forEach(b => b.classList.remove('active'));
+totalMinutesInput.addEventListener('input', () => {
+  const val = parseInt(totalMinutesInput.value, 10);
+  if (!val || val < 1) return;
+  totalSeconds = val * 60;
   // Trim intervals that no longer fit
   while (allocatedSeconds() > totalSeconds) {
     intervals.pop();
   }
   renderSetup();
-}
-
-durationBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    selectTotalDuration(parseInt(btn.dataset.minutes, 10));
-    btn.classList.add('active');
-  });
-});
-
-customDurationBtn.addEventListener('click', () => {
-  const val = parseInt(customMinutesInput.value, 10);
-  if (!val || val < 1) return;
-  durationBtns.forEach(b => b.classList.remove('active'));
-  selectTotalDuration(val);
-  customMinutesInput.value = '';
 });
 
 // ===== Setup: interval builder =====
@@ -225,6 +209,10 @@ startBtn.addEventListener('click', startSession);
 
 function startSession() {
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
+
+  // Unlock AudioContext on user gesture (required for iOS Safari)
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
 
   // Switch screens
   setupScreen.classList.add('hidden');
