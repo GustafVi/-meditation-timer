@@ -391,29 +391,6 @@ function completeSession() {
   }, 2000);
 }
 
-// ===== Debug: test sound button =====
-const audioDebug = document.getElementById('audio-debug');
-document.getElementById('test-sound-btn').addEventListener('click', () => {
-  try {
-    const ctx = getAudioCtx();
-    ctx.resume().then(() => {
-      audioDebug.textContent = 'ctx:' + ctx.state;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 440;
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.5);
-    });
-  } catch (e) {
-    audioDebug.textContent = 'err:' + e.message;
-  }
-});
-
 // ===== Service Worker =====
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js');

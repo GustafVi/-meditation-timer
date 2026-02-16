@@ -78,38 +78,7 @@
     </main>
   </div>
 
-  <p class="version-label">v1.7 | <button id="test-sound-btn" style="background:none;border:none;color:inherit;text-decoration:underline;font-size:inherit;cursor:pointer;">Test Sound</button> | <span id="audio-debug">--</span></p>
-  <p id="js-error" class="version-label" style="bottom:1.5rem;color:#e94560;"></p>
-  <script>
-    window.onerror=function(m,s,l){document.getElementById('js-error').textContent=m+' L'+l;};
-    // Standalone test sound - no dependencies on app.js
-    document.getElementById('test-sound-btn').addEventListener('touchend', function(e) {
-      e.preventDefault();
-      var dbg = document.getElementById('audio-debug');
-      try {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        dbg.textContent = 'AC:' + (AC ? 'yes' : 'no');
-        var ctx = new AC();
-        ctx.resume().then(function() {
-          dbg.textContent = 'state:' + ctx.state;
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = 440;
-          gain.gain.value = 0.3;
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(0);
-          osc.stop(ctx.currentTime + 0.5);
-          dbg.textContent = 'played:' + ctx.state;
-        }).catch(function(err) {
-          dbg.textContent = 'resume-err:' + err;
-        });
-      } catch(e) {
-        dbg.textContent = 'catch:' + e.message;
-      }
-    });
-  </script>
+  <p class="version-label">v1.8</p>
   <script src="app.js"></script>
 </body>
 </html>
