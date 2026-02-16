@@ -78,7 +78,9 @@
     </main>
   </div>
 
-  <p class="version-label">v1.5 | <button id="test-sound-btn" style="background:none;border:none;color:inherit;text-decoration:underline;font-size:inherit;cursor:pointer;">Test Sound</button> | <span id="audio-debug">--</span></p>
+  <p class="version-label">v1.6 | <button id="test-sound-btn" style="background:none;border:none;color:inherit;text-decoration:underline;font-size:inherit;cursor:pointer;">Test Sound</button> | <span id="audio-debug">--</span></p>
+  <p id="js-error" class="version-label" style="bottom:1.5rem;color:#e94560;"></p>
+  <script>window.onerror=function(m,s,l){document.getElementById('js-error').textContent=m+' L'+l;}</script>
   <script src="app.js"></script>
 </body>
 </html>
