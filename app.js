@@ -280,17 +280,13 @@ function getTimerState() {
 function tick() {
   const state = getTimerState();
 
-  // Check for interval transitions and play chimes
-  if (state.idx > lastChimedInterval + 1) {
-    // We skipped past one or more intervals (screen was locked)
-    // Chime for the most recent transition
+  // Chime once per interval transition
+  // lastChimedInterval starts at -1; when we enter interval 1 (idx=1),
+  // that means the boundary between interval 0 and 1 was crossed → chime
+  if (state.idx > 0 && lastChimedInterval < state.idx - 1) {
     playIntervalChime();
-  } else if (state.idx === lastChimedInterval + 1 && state.idx > 0) {
-    playIntervalChime();
+    lastChimedInterval = state.idx - 1;
   }
-  if (state.idx > lastChimedInterval) lastChimedInterval = state.idx - 1;
-  // Update to current interval (but not beyond last chimed to avoid double-chime)
-  if (state.idx > 0) lastChimedInterval = state.idx - 1;
 
   currentIntervalIndex = state.idx;
   const iv = intervals[currentIntervalIndex];
