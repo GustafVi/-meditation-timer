@@ -40,12 +40,15 @@ const SEGMENT_COLORS = [
 let totalSeconds = 10 * 60; // default 10 min
 let intervals = [];          // { seconds, label }
 let currentIntervalIndex = 0;
-let elapsedInInterval = 0;
-let totalElapsed = 0;
 let timerInterval = null;
 let isRunning = false;
 let sessions = parseInt(localStorage.getItem('meditationSessions') || '0', 10);
 let audioCtx = null;
+
+// Timestamp-based tracking (survives iOS screen lock)
+let sessionStartTime = 0;   // Date.now() when session started
+let pausedElapsed = 0;       // total ms elapsed before last pause
+let lastChimedInterval = -1; // track which intervals already chimed
 
 sessionCountEl.textContent = sessions;
 
@@ -245,64 +248,72 @@ function startSession() {
   timerScreen.classList.remove('hidden');
 
   currentIntervalIndex = 0;
-  elapsedInInterval = 0;
-  totalElapsed = 0;
+  lastChimedInterval = -1;
+  pausedElapsed = 0;
+  sessionStartTime = Date.now();
   isRunning = true;
 
   renderTimeline();
-  beginCurrentInterval();
-  timerInterval = setInterval(tick, 1000);
+  tick(); // render immediately
+  timerInterval = setInterval(tick, 250); // check 4x/sec for accuracy
   pauseBtn.textContent = 'Pause';
   timerDisplay.classList.add('active');
 }
 
 // ===== Timer logic =====
-function beginCurrentInterval() {
-  const iv = intervals[currentIntervalIndex];
-  const remaining = iv.seconds - elapsedInInterval;
-  timerText.textContent = formatTime(remaining);
-  intervalIndicator.textContent = `Interval ${currentIntervalIndex + 1} of ${intervals.length}`;
-  intervalNameEl.textContent = iv.label || '';
-  updateRingProgress();
-  updateOverallProgress();
-  highlightTimeline();
+// Compute which interval we're in and how far along, based on real time
+function getTimerState() {
+  const elapsedMs = isRunning ? (pausedElapsed + (Date.now() - sessionStartTime)) : pausedElapsed;
+  const totalElapsed = Math.min(Math.floor(elapsedMs / 1000), totalSeconds);
+  let accumulated = 0;
+  let idx = 0;
+  for (idx = 0; idx < intervals.length; idx++) {
+    if (accumulated + intervals[idx].seconds > totalElapsed) break;
+    accumulated += intervals[idx].seconds;
+  }
+  const done = totalElapsed >= totalSeconds;
+  if (done) idx = intervals.length - 1;
+  const elapsedInInterval = totalElapsed - accumulated;
+  return { totalElapsed, idx, elapsedInInterval, done };
 }
 
 function tick() {
-  elapsedInInterval++;
-  totalElapsed++;
-  const iv = intervals[currentIntervalIndex];
-  const remaining = iv.seconds - elapsedInInterval;
-  timerText.textContent = formatTime(remaining);
-  updateRingProgress();
-  updateOverallProgress();
+  const state = getTimerState();
 
-  if (remaining <= 0) {
-    // Interval done
-    if (currentIntervalIndex < intervals.length - 1) {
-      // Move to next interval
-      playIntervalChime();
-      currentIntervalIndex++;
-      elapsedInInterval = 0;
-      beginCurrentInterval();
-    } else {
-      // Session complete
-      completeSession();
-    }
+  // Check for interval transitions and play chimes
+  if (state.idx > lastChimedInterval + 1) {
+    // We skipped past one or more intervals (screen was locked)
+    // Chime for the most recent transition
+    playIntervalChime();
+  } else if (state.idx === lastChimedInterval + 1 && state.idx > 0) {
+    playIntervalChime();
   }
-}
+  if (state.idx > lastChimedInterval) lastChimedInterval = state.idx - 1;
+  // Update to current interval (but not beyond last chimed to avoid double-chime)
+  if (state.idx > 0) lastChimedInterval = state.idx - 1;
 
-function updateRingProgress() {
+  currentIntervalIndex = state.idx;
   const iv = intervals[currentIntervalIndex];
-  const fraction = (iv.seconds - elapsedInInterval) / iv.seconds;
-  progressCircle.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
-}
+  const remainInInterval = iv.seconds - state.elapsedInInterval;
 
-function updateOverallProgress() {
-  const pct = (totalElapsed / totalSeconds) * 100;
-  overallFill.style.width = `${pct}%`;
-  const overallRemaining = totalSeconds - totalElapsed;
-  overallTime.textContent = formatTime(overallRemaining);
+  timerText.textContent = formatTime(Math.max(remainInInterval, 0));
+  intervalIndicator.textContent = `Interval ${currentIntervalIndex + 1} of ${intervals.length}`;
+  intervalNameEl.textContent = iv.label || '';
+
+  // Ring progress
+  const fraction = Math.max((iv.seconds - state.elapsedInInterval) / iv.seconds, 0);
+  progressCircle.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+
+  // Overall progress
+  const pct = (state.totalElapsed / totalSeconds) * 100;
+  overallFill.style.width = `${Math.min(pct, 100)}%`;
+  overallTime.textContent = formatTime(totalSeconds - state.totalElapsed);
+
+  highlightTimeline();
+
+  if (state.done) {
+    completeSession();
+  }
 }
 
 function renderTimeline() {
@@ -331,14 +342,16 @@ resetBtn.addEventListener('click', resetToSetup);
 function togglePause() {
   if (isRunning) {
     clearInterval(timerInterval);
+    pausedElapsed += Date.now() - sessionStartTime;
     isRunning = false;
     pauseBtn.textContent = 'Resume';
     timerDisplay.classList.remove('active');
   } else {
+    sessionStartTime = Date.now();
     isRunning = true;
     pauseBtn.textContent = 'Pause';
     timerDisplay.classList.add('active');
-    timerInterval = setInterval(tick, 1000);
+    timerInterval = setInterval(tick, 250);
   }
 }
 
