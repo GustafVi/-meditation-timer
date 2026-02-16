@@ -69,6 +69,11 @@ function showError(msg) {
 }
 
 // ===== Audio =====
+// Unlock audio on the very first touch anywhere on the page.
+// iOS Safari requires AudioContext creation + resume + playback
+// to all happen inside a user-initiated touch event handler.
+let audioUnlocked = false;
+
 function getAudioCtx() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -76,26 +81,30 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-// Play a silent buffer to fully unlock audio on iOS
 function unlockAudio() {
+  if (audioUnlocked) return;
   const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
-  const buf = ctx.createBuffer(1, 1, 22050);
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.connect(ctx.destination);
-  src.start(0);
+  ctx.resume().then(() => {
+    // Play a short silent tone to fully activate the audio pipeline
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;          // silent
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(0);
+    osc.stop(ctx.currentTime + 0.05);
+    audioUnlocked = true;
+  });
 }
 
-function ensureAudioResumed() {
-  const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
-}
+// Attach unlock to first user interaction (touchstart fires before click on iOS)
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
 
 function playIntervalChime() {
   try {
-    ensureAudioResumed();
     const ctx = getAudioCtx();
+    ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -111,8 +120,8 @@ function playIntervalChime() {
 
 function playSessionChime() {
   try {
-    ensureAudioResumed();
     const ctx = getAudioCtx();
+    ctx.resume();
     const freqs = [523.25, 659.25, 783.99]; // C5 E5 G5
     freqs.forEach((freq, i) => {
       const osc = ctx.createOscillator();
