@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meditation-v5';
+const CACHE_NAME = 'meditation-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -25,9 +25,15 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch — cache-first strategy
+// Fetch — network-first strategy (fall back to cache when offline)
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
+    fetch(event.request)
+      .then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
