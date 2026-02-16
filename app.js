@@ -278,14 +278,23 @@ function getTimerState() {
 }
 
 function tick() {
+  if (!isRunning) return;
+
   const state = getTimerState();
 
+  // Session complete — stop immediately, chime once
+  if (state.done) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    completeSession();
+    return;
+  }
+
   // Chime once per interval transition
-  // lastChimedInterval starts at -1; when we enter interval 1 (idx=1),
-  // that means the boundary between interval 0 and 1 was crossed → chime
-  if (state.idx > 0 && lastChimedInterval < state.idx - 1) {
+  // When we move from interval 0 to 1, lastChimedInterval goes from -1 to 0
+  while (lastChimedInterval < state.idx - 1) {
+    lastChimedInterval++;
     playIntervalChime();
-    lastChimedInterval = state.idx - 1;
   }
 
   currentIntervalIndex = state.idx;
@@ -306,10 +315,6 @@ function tick() {
   overallTime.textContent = formatTime(totalSeconds - state.totalElapsed);
 
   highlightTimeline();
-
-  if (state.done) {
-    completeSession();
-  }
 }
 
 function renderTimeline() {
