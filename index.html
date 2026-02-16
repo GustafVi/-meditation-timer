@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="description" content="A simple meditation timer PWA">
+  <title>Meditation Timer</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧘</text></svg>">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Meditation Timer</h1>
+    </header>
+
+    <main>
+      <!-- ===== SETUP SCREEN ===== -->
+      <div id="setup-screen">
+        <section class="setup-section">
+          <h2 class="section-label">Total Duration</h2>
+          <div class="duration-selector">
+            <button class="duration-btn" data-minutes="5">5 min</button>
+            <button class="duration-btn active" data-minutes="10">10 min</button>
+            <button class="duration-btn" data-minutes="15">15 min</button>
+            <button class="duration-btn" data-minutes="20">20 min</button>
+            <button class="duration-btn" data-minutes="30">30 min</button>
+          </div>
+          <div class="custom-duration">
+            <input type="number" id="custom-minutes" min="1" max="180" placeholder="Custom min">
+            <button id="custom-duration-btn" class="duration-btn">Set</button>
+          </div>
+        </section>
+
+        <section class="setup-section">
+          <h2 class="section-label">Intervals <span id="remaining-time" class="remaining-badge">10:00 remaining</span></h2>
+          <div class="interval-add-row">
+            <input type="number" id="interval-minutes" min="0" max="180" placeholder="Min" class="interval-input">
+            <span class="interval-input-sep">:</span>
+            <input type="number" id="interval-seconds" min="0" max="59" placeholder="Sec" class="interval-input">
+            <input type="text" id="interval-label" placeholder="Label (optional)" class="interval-label-input">
+            <button id="add-interval-btn" class="control-btn accent-sm">Add</button>
+          </div>
+          <div id="interval-list" class="interval-list"></div>
+          <div id="interval-bar" class="interval-bar"></div>
+        </section>
+
+        <div class="controls">
+          <button id="start-btn" class="control-btn primary" disabled>Start</button>
+        </div>
+        <p id="setup-error" class="setup-error"></p>
+
+        <div class="session-info">
+          <p>Sessions completed: <span id="session-count">0</span></p>
+        </div>
+      </div>
+
+      <!-- ===== TIMER SCREEN ===== -->
+      <div id="timer-screen" class="hidden">
+        <p id="interval-indicator" class="interval-indicator">Interval 1 of 1</p>
+        <p id="interval-name" class="interval-name"></p>
+
+        <div class="timer-display">
+          <svg class="progress-ring" viewBox="0 0 200 200">
+            <circle class="progress-ring__bg" cx="100" cy="100" r="90" />
+            <circle class="progress-ring__circle" cx="100" cy="100" r="90" />
+          </svg>
+          <span id="timer-text">00:00</span>
+        </div>
+
+        <div class="overall-progress-wrap">
+          <div class="overall-progress-bar">
+            <div id="overall-progress-fill" class="overall-progress-fill"></div>
+          </div>
+          <span id="overall-time" class="overall-time"></span>
+        </div>
+
+        <div id="interval-timeline" class="interval-timeline"></div>
+
+        <div class="controls">
+          <button id="pause-btn" class="control-btn primary">Pause</button>
+          <button id="reset-btn" class="control-btn secondary">Reset</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
