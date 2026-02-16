@@ -75,12 +75,42 @@ function showError(msg) {
 let audioUnlocked = false;
 let scheduledNodes = [];  // track scheduled oscillators for cancel on pause/reset
 let keepAliveOsc = null;  // silent oscillator to keep AudioContext alive during screen lock
+let keepAliveAudio = null; // <audio> element for iOS background audio session
 
 function getAudioCtx() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
   return audioCtx;
+}
+
+// Generate a short silent WAV as a base64 data URI
+function createSilentWav() {
+  // 1 second of silence, mono, 16-bit, 8000 Hz
+  const sampleRate = 8000;
+  const numSamples = sampleRate; // 1 second
+  const dataSize = numSamples * 2; // 16-bit = 2 bytes per sample
+  const fileSize = 44 + dataSize;
+  const buffer = new ArrayBuffer(fileSize);
+  const view = new DataView(buffer);
+  // RIFF header
+  const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, fileSize - 8, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true); // chunk size
+  view.setUint16(20, 1, true);  // PCM
+  view.setUint16(22, 1, true);  // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);  // block align
+  view.setUint16(34, 16, true); // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  // samples are all zero (silence)
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  return URL.createObjectURL(blob);
 }
 
 function unlockAudio() {
@@ -96,26 +126,45 @@ function unlockAudio() {
     osc.stop(ctx.currentTime + 0.05);
     audioUnlocked = true;
   });
+  // Also prime the <audio> element for iOS
+  if (!keepAliveAudio) {
+    keepAliveAudio = new Audio(createSilentWav());
+    keepAliveAudio.loop = true;
+    keepAliveAudio.volume = 0.01;
+  }
+  // Must call play() from a user gesture to enable background audio on iOS
+  keepAliveAudio.play().catch(() => {});
+  keepAliveAudio.pause();
 }
 
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
-// Start a silent tone to keep AudioContext alive when screen locks
+// Start silent audio loop + oscillator to keep audio session alive during screen lock
 function startKeepAlive() {
   const ctx = getAudioCtx();
   keepAliveOsc = ctx.createOscillator();
   const gain = ctx.createGain();
-  gain.gain.value = 0.001; // near-silent — enough to keep audio session alive
+  gain.gain.value = 0.001;
   keepAliveOsc.connect(gain);
   gain.connect(ctx.destination);
   keepAliveOsc.start(0);
+
+  // iOS: play silent <audio> loop to keep the system audio session active
+  if (keepAliveAudio) {
+    keepAliveAudio.currentTime = 0;
+    keepAliveAudio.play().catch(() => {});
+  }
 }
 
 function stopKeepAlive() {
   if (keepAliveOsc) {
     try { keepAliveOsc.stop(); } catch (e) {}
     keepAliveOsc = null;
+  }
+  if (keepAliveAudio) {
+    keepAliveAudio.pause();
+    keepAliveAudio.currentTime = 0;
   }
 }
 
@@ -482,6 +531,43 @@ function completeSession() {
     };
   }, 2000);
 }
+
+// ===== iOS screen wake recovery =====
+// When iOS suspends the page and the user wakes the screen,
+// the AudioContext may have been suspended and scheduled nodes lost.
+// Reschedule remaining chimes from the current position.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isRunning) {
+    const ctx = getAudioCtx();
+    ctx.resume().then(() => {
+      // Reschedule any remaining chimes
+      cancelScheduledChimes();
+      const baseTime = ctx.currentTime;
+      const state = getTimerState();
+      if (state.done) {
+        tick(); // will trigger completeSession
+        return;
+      }
+      let accumulated = 0;
+      for (let i = 0; i < intervals.length; i++) {
+        accumulated += intervals[i].seconds;
+        const chimeSec = accumulated - state.totalElapsed;
+        if (chimeSec <= 0) continue;
+        if (i < intervals.length - 1) {
+          scheduleIntervalChime(baseTime + chimeSec);
+        } else {
+          scheduleSessionChime(baseTime + chimeSec);
+        }
+      }
+    });
+    // Also ensure the keep-alive audio is still playing
+    if (keepAliveAudio && keepAliveAudio.paused) {
+      keepAliveAudio.play().catch(() => {});
+    }
+    // Force a UI update
+    tick();
+  }
+});
 
 // ===== Service Worker =====
 if ('serviceWorker' in navigator) {
