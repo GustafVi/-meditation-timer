@@ -43,7 +43,6 @@ let currentIntervalIndex = 0;
 let timerInterval = null;
 let isRunning = false;
 let sessions = parseInt(localStorage.getItem('meditationSessions') || '0', 10);
-let audioCtx = null;
 
 // Timestamp-based tracking (survives iOS screen lock)
 let sessionStartTime = 0;   // Date.now() when session started
@@ -71,178 +70,200 @@ function showError(msg) {
   setupError.textContent = msg;
 }
 
-// ===== Audio =====
+// ===== Audio (HTML Audio elements for iOS screen-lock support) =====
 let audioUnlocked = false;
-let scheduledNodes = [];  // track scheduled oscillators for cancel on pause/reset
-let keepAliveOsc = null;  // silent oscillator to keep AudioContext alive during screen lock
-let keepAliveAudio = null; // <audio> element for iOS background audio session
+let chimeTimeouts = [];      // setTimeout IDs for scheduled chimes
+let ambientAudio = null;     // looping near-silent <audio> to keep iOS audio session alive
+let intervalChimeUrl = null;  // blob URL for interval chime WAV
+let sessionChimeUrl = null;   // blob URL for session-complete chime WAV
+let ambientUrl = null;        // blob URL for ambient loop WAV
 
-function getAudioCtx() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  return audioCtx;
-}
-
-// Generate a short silent WAV as a base64 data URI
-function createSilentWav() {
-  // 1 second of silence, mono, 16-bit, 8000 Hz
-  const sampleRate = 8000;
-  const numSamples = sampleRate; // 1 second
-  const dataSize = numSamples * 2; // 16-bit = 2 bytes per sample
+// --- WAV generation helpers ---
+function writeWavHeader(view, sampleRate, numSamples) {
+  const dataSize = numSamples * 2;
   const fileSize = 44 + dataSize;
-  const buffer = new ArrayBuffer(fileSize);
-  const view = new DataView(buffer);
-  // RIFF header
-  const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
   writeStr(0, 'RIFF');
   view.setUint32(4, fileSize - 8, true);
   writeStr(8, 'WAVE');
   writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true); // chunk size
+  view.setUint32(16, 16, true);
   view.setUint16(20, 1, true);  // PCM
   view.setUint16(22, 1, true);  // mono
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // byte rate
-  view.setUint16(32, 2, true);  // block align
-  view.setUint16(34, 16, true); // bits per sample
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
   writeStr(36, 'data');
   view.setUint32(40, dataSize, true);
-  // samples are all zero (silence)
-  const blob = new Blob([buffer], { type: 'audio/wav' });
-  return URL.createObjectURL(blob);
 }
+
+// Generate the interval chime: E5 sine, 0.8s with decay
+function generateIntervalChimeWav() {
+  const sampleRate = 44100;
+  const duration = 0.8;
+  const numSamples = Math.ceil(sampleRate * duration);
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  writeWavHeader(view, sampleRate, numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const amp = 0.18 * Math.exp(-3.5 * t);
+    const sample = amp * Math.sin(2 * Math.PI * 659.25 * t);
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sample * 32767)), true);
+  }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+
+// Generate the session-complete chime: C5-E5-G5 arpeggio
+function generateSessionChimeWav() {
+  const sampleRate = 44100;
+  const freqs = [523.25, 659.25, 783.99];
+  const noteSpacing = 0.3;
+  const noteDuration = 2.0;
+  const totalDuration = noteSpacing * (freqs.length - 1) + noteDuration;
+  const numSamples = Math.ceil(sampleRate * totalDuration);
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  writeWavHeader(view, sampleRate, numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    let sample = 0;
+    for (let n = 0; n < freqs.length; n++) {
+      const noteStart = n * noteSpacing;
+      if (t >= noteStart && t < noteStart + noteDuration) {
+        const noteT = t - noteStart;
+        const amp = 0.15 * Math.exp(-1.5 * noteT);
+        sample += amp * Math.sin(2 * Math.PI * freqs[n] * noteT);
+      }
+    }
+    sample = Math.max(-1, Math.min(1, sample));
+    view.setInt16(44 + i * 2, sample * 32767, true);
+  }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+
+// Generate a near-silent looping ambient tone (very low volume sine)
+function generateAmbientWav() {
+  const sampleRate = 8000;
+  const duration = 2; // 2-second loop
+  const numSamples = sampleRate * duration;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  writeWavHeader(view, sampleRate, numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    // Barely audible 100 Hz tone
+    const sample = 0.002 * Math.sin(2 * Math.PI * 100 * t);
+    view.setInt16(44 + i * 2, sample * 32767, true);
+  }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+
+// Pre-generate all audio blobs at startup
+intervalChimeUrl = generateIntervalChimeWav();
+sessionChimeUrl = generateSessionChimeWav();
+ambientUrl = generateAmbientWav();
 
 function unlockAudio() {
   if (audioUnlocked) return;
-  const ctx = getAudioCtx();
-  ctx.resume().then(() => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(0);
-    osc.stop(ctx.currentTime + 0.05);
-    audioUnlocked = true;
-  });
-  // Also prime the <audio> element for iOS
-  if (!keepAliveAudio) {
-    keepAliveAudio = new Audio(createSilentWav());
-    keepAliveAudio.loop = true;
-    keepAliveAudio.volume = 0.01;
+  audioUnlocked = true;
+  // Prime the ambient audio element from a user gesture (required by iOS)
+  if (!ambientAudio) {
+    ambientAudio = new Audio(ambientUrl);
+    ambientAudio.loop = true;
+    ambientAudio.volume = 0.01;
   }
-  // Must call play() from a user gesture to enable background audio on iOS
-  keepAliveAudio.play().catch(() => {});
-  keepAliveAudio.pause();
+  // Play + pause to unlock the audio element for later programmatic playback
+  ambientAudio.play().then(() => { ambientAudio.pause(); }).catch(() => {});
+  // Also prime a chime element to fully unlock audio playback
+  const primer = new Audio(intervalChimeUrl);
+  primer.volume = 0;
+  primer.play().then(() => { primer.pause(); }).catch(() => {});
 }
 
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
-// Start silent audio loop + oscillator to keep audio session alive during screen lock
-function startKeepAlive() {
-  const ctx = getAudioCtx();
-  keepAliveOsc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  gain.gain.value = 0.001;
-  keepAliveOsc.connect(gain);
-  gain.connect(ctx.destination);
-  keepAliveOsc.start(0);
-
-  // iOS: play silent <audio> loop to keep the system audio session active
-  if (keepAliveAudio) {
-    keepAliveAudio.currentTime = 0;
-    keepAliveAudio.play().catch(() => {});
-  }
-}
-
-function stopKeepAlive() {
-  if (keepAliveOsc) {
-    try { keepAliveOsc.stop(); } catch (e) {}
-    keepAliveOsc = null;
-  }
-  if (keepAliveAudio) {
-    keepAliveAudio.pause();
-    keepAliveAudio.currentTime = 0;
-  }
-}
-
-// Schedule an interval chime at a specific AudioContext time
-function scheduleIntervalChime(atTime) {
-  const ctx = getAudioCtx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = 659.25; // E5
-  gain.gain.setValueAtTime(0.18, atTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, atTime + 0.8);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(atTime);
-  osc.stop(atTime + 0.8);
-  scheduledNodes.push(osc);
-}
-
-// Schedule the session-complete chime at a specific AudioContext time
-function scheduleSessionChime(atTime) {
-  const ctx = getAudioCtx();
-  const freqs = [523.25, 659.25, 783.99]; // C5 E5 G5
-  freqs.forEach((freq, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.15, atTime + i * 0.3);
-    gain.gain.exponentialRampToValueAtTime(0.001, atTime + i * 0.3 + 2);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(atTime + i * 0.3);
-    osc.stop(atTime + i * 0.3 + 2);
-    scheduledNodes.push(osc);
-  });
-}
-
-// Pre-schedule all chimes for the session
-function scheduleAllChimes() {
-  cancelScheduledChimes();
-  const ctx = getAudioCtx();
-  const baseTime = ctx.currentTime;
-  let accumulated = 0;
-  for (let i = 0; i < intervals.length; i++) {
-    accumulated += intervals[i].seconds;
-    if (i < intervals.length - 1) {
-      // Interval boundary chime
-      scheduleIntervalChime(baseTime + accumulated);
-    } else {
-      // Final session chime
-      scheduleSessionChime(baseTime + accumulated);
-    }
-  }
-}
-
-function cancelScheduledChimes() {
-  scheduledNodes.forEach(node => {
-    try { node.stop(); } catch (e) {}
-  });
-  scheduledNodes = [];
-}
-
-// Fallback chime for when JS is active (e.g., screen wake catch-up)
+// --- Play chimes via <audio> elements ---
 function playIntervalChime() {
   try {
-    const ctx = getAudioCtx();
-    ctx.resume();
-    scheduleIntervalChime(ctx.currentTime);
+    const a = new Audio(intervalChimeUrl);
+    a.volume = 1.0;
+    a.play().catch(() => {});
   } catch (e) {}
 }
 
 function playSessionChime() {
   try {
-    const ctx = getAudioCtx();
-    ctx.resume();
-    scheduleSessionChime(ctx.currentTime);
+    const a = new Audio(sessionChimeUrl);
+    a.volume = 1.0;
+    a.play().catch(() => {});
   } catch (e) {}
+}
+
+// --- Ambient keep-alive ---
+function startKeepAlive() {
+  if (!ambientAudio) {
+    ambientAudio = new Audio(ambientUrl);
+    ambientAudio.loop = true;
+    ambientAudio.volume = 0.01;
+  }
+  ambientAudio.currentTime = 0;
+  ambientAudio.play().catch(() => {});
+}
+
+function stopKeepAlive() {
+  if (ambientAudio) {
+    ambientAudio.pause();
+    ambientAudio.currentTime = 0;
+  }
+}
+
+// --- Schedule chimes via setTimeout ---
+function scheduleAllChimes() {
+  cancelScheduledChimes();
+  const state = getTimerState();
+  let accumulated = 0;
+  for (let i = 0; i < intervals.length; i++) {
+    accumulated += intervals[i].seconds;
+    const delaySec = accumulated - state.totalElapsed;
+    if (delaySec <= 0) continue;
+    if (i < intervals.length - 1) {
+      const tid = setTimeout(playIntervalChime, delaySec * 1000);
+      chimeTimeouts.push(tid);
+    } else {
+      const tid = setTimeout(playSessionChime, delaySec * 1000);
+      chimeTimeouts.push(tid);
+    }
+  }
+}
+
+function cancelScheduledChimes() {
+  chimeTimeouts.forEach(id => clearTimeout(id));
+  chimeTimeouts = [];
+}
+
+// --- MediaSession API ---
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'Meditation Timer',
+    artist: 'Session in progress',
+  });
+  navigator.mediaSession.setActionHandler('play', () => {
+    if (!isRunning) togglePause();
+  });
+  navigator.mediaSession.setActionHandler('pause', () => {
+    if (isRunning) togglePause();
+  });
+}
+
+function clearMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = null;
+  navigator.mediaSession.setActionHandler('play', null);
+  navigator.mediaSession.setActionHandler('pause', null);
 }
 
 // ===== Setup: total duration =====
@@ -344,7 +365,7 @@ startBtn.addEventListener('click', startSession);
 function startSession() {
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
 
-  // Unlock AudioContext on user gesture (required for iOS Safari)
+  // Unlock audio on user gesture (required for iOS Safari)
   unlockAudio();
 
   // Switch screens
@@ -357,11 +378,10 @@ function startSession() {
   sessionStartTime = Date.now();
   isRunning = true;
 
-  // Pre-schedule all chimes via Web Audio (works during screen lock)
-  const ctx = getAudioCtx();
-  ctx.resume();
-  scheduleAllChimes();
+  // Schedule chimes via setTimeout + start ambient keep-alive
   startKeepAlive();
+  scheduleAllChimes();
+  setupMediaSession();
 
   renderTimeline();
   tick(); // render immediately
@@ -397,7 +417,6 @@ function tick() {
     clearInterval(timerInterval);
     timerInterval = null;
     stopKeepAlive();
-    // Chimes already pre-scheduled via Web Audio — just update UI
     completeSession();
     return;
   }
@@ -457,24 +476,8 @@ function togglePause() {
   } else {
     sessionStartTime = Date.now();
     isRunning = true;
-    // Reschedule remaining chimes from current position
-    const ctx = getAudioCtx();
-    ctx.resume();
-    cancelScheduledChimes();
-    const baseTime = ctx.currentTime;
-    const state = getTimerState();
-    let accumulated = 0;
-    for (let i = 0; i < intervals.length; i++) {
-      accumulated += intervals[i].seconds;
-      const chimeSec = accumulated - state.totalElapsed;
-      if (chimeSec <= 0) continue;
-      if (i < intervals.length - 1) {
-        scheduleIntervalChime(baseTime + chimeSec);
-      } else {
-        scheduleSessionChime(baseTime + chimeSec);
-      }
-    }
     startKeepAlive();
+    scheduleAllChimes();
     pauseBtn.textContent = 'Pause';
     timerDisplay.classList.add('active');
     timerInterval = setInterval(tick, 250);
@@ -486,6 +489,7 @@ function resetToSetup() {
   isRunning = false;
   cancelScheduledChimes();
   stopKeepAlive();
+  clearMediaSession();
   timerDisplay.classList.remove('active');
   progressCircle.style.strokeDashoffset = 0;
   timerScreen.classList.add('hidden');
@@ -498,14 +502,14 @@ function resetToSetup() {
 function completeSession() {
   clearInterval(timerInterval);
   isRunning = false;
+  cancelScheduledChimes();
+  clearMediaSession();
   timerDisplay.classList.remove('active');
   highlightTimeline();
 
   sessions++;
   localStorage.setItem('meditationSessions', sessions);
   sessionCountEl.textContent = sessions;
-
-  // Chimes are pre-scheduled via Web Audio — no need to trigger here
 
   // Mark all intervals as done in timeline
   intervalTimeline.querySelectorAll('.timeline-chip').forEach(chip => {
@@ -534,36 +538,37 @@ function completeSession() {
 
 // ===== iOS screen wake recovery =====
 // When iOS suspends the page and the user wakes the screen,
-// the AudioContext may have been suspended and scheduled nodes lost.
-// Reschedule remaining chimes from the current position.
+// setTimeout timers may have been delayed. Reschedule remaining chimes
+// and play any that were missed while the screen was locked.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && isRunning) {
-    const ctx = getAudioCtx();
-    ctx.resume().then(() => {
-      // Reschedule any remaining chimes
-      cancelScheduledChimes();
-      const baseTime = ctx.currentTime;
-      const state = getTimerState();
-      if (state.done) {
-        tick(); // will trigger completeSession
-        return;
-      }
-      let accumulated = 0;
-      for (let i = 0; i < intervals.length; i++) {
-        accumulated += intervals[i].seconds;
-        const chimeSec = accumulated - state.totalElapsed;
-        if (chimeSec <= 0) continue;
-        if (i < intervals.length - 1) {
-          scheduleIntervalChime(baseTime + chimeSec);
-        } else {
-          scheduleSessionChime(baseTime + chimeSec);
-        }
-      }
-    });
-    // Also ensure the keep-alive audio is still playing
-    if (keepAliveAudio && keepAliveAudio.paused) {
-      keepAliveAudio.play().catch(() => {});
+    const state = getTimerState();
+
+    if (state.done) {
+      tick(); // will trigger completeSession
+      return;
     }
+
+    // Play missed interval chimes
+    let accumulated = 0;
+    for (let i = 0; i < intervals.length; i++) {
+      accumulated += intervals[i].seconds;
+      if (accumulated <= state.totalElapsed && i > lastChimedInterval) {
+        if (i < intervals.length - 1) {
+          playIntervalChime();
+        }
+        lastChimedInterval = i;
+      }
+    }
+
+    // Reschedule remaining chimes from current position
+    scheduleAllChimes();
+
+    // Ensure ambient keep-alive is still playing
+    if (ambientAudio && ambientAudio.paused) {
+      ambientAudio.play().catch(() => {});
+    }
+
     // Force a UI update
     tick();
   }
