@@ -74,9 +74,11 @@ function showError(msg) {
 let audioUnlocked = false;
 let chimeTimeouts = [];      // setTimeout IDs for scheduled chimes
 let ambientAudio = null;     // looping near-silent <audio> to keep iOS audio session alive
-let intervalChimeUrl = null;  // blob URL for interval chime WAV
-let sessionChimeUrl = null;   // blob URL for session-complete chime WAV
-let ambientUrl = null;        // blob URL for ambient loop WAV
+let intervalChimeUrl = null;   // blob URL for interval chime WAV
+let sessionChimeUrl = null;    // blob URL for session-complete chime WAV
+let ambientUrl = null;         // blob URL for ambient loop WAV
+let intervalChimeAudio = null; // pre-created <audio> for interval chime (reused)
+let sessionChimeAudio = null;  // pre-created <audio> for session chime (reused)
 
 // --- WAV generation helpers ---
 function writeWavHeader(view, sampleRate, numSamples) {
@@ -176,30 +178,24 @@ function unlockAudio() {
   }
   // Play + pause to unlock the audio element for later programmatic playback
   ambientAudio.play().then(() => { ambientAudio.pause(); }).catch(() => {});
-  // Also prime a chime element to fully unlock audio playback
-  const primer = new Audio(intervalChimeUrl);
-  primer.volume = 0;
-  primer.play().then(() => { primer.pause(); }).catch(() => {});
 }
 
 document.addEventListener('touchstart', unlockAudio, { once: true });
 document.addEventListener('click', unlockAudio, { once: true });
 
-// --- Play chimes via <audio> elements ---
+// --- Play chimes via pre-created <audio> elements ---
+// iOS requires Audio elements to be played from a user gesture to "unlock" them.
+// These are created and primed in startSession() (a click handler), then reused here.
 function playIntervalChime() {
-  try {
-    const a = new Audio(intervalChimeUrl);
-    a.volume = 1.0;
-    a.play().catch(() => {});
-  } catch (e) {}
+  if (!intervalChimeAudio) return;
+  intervalChimeAudio.currentTime = 0;
+  intervalChimeAudio.play().catch(() => {});
 }
 
 function playSessionChime() {
-  try {
-    const a = new Audio(sessionChimeUrl);
-    a.volume = 1.0;
-    a.play().catch(() => {});
-  } catch (e) {}
+  if (!sessionChimeAudio) return;
+  sessionChimeAudio.currentTime = 0;
+  sessionChimeAudio.play().catch(() => {});
 }
 
 // --- Ambient keep-alive ---
@@ -365,8 +361,14 @@ startBtn.addEventListener('click', startSession);
 function startSession() {
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
 
-  // Unlock audio on user gesture (required for iOS Safari)
+  // Create and prime chime Audio elements from user gesture (required by iOS)
   unlockAudio();
+  intervalChimeAudio = new Audio(intervalChimeUrl);
+  intervalChimeAudio.volume = 1.0;
+  intervalChimeAudio.play().then(() => intervalChimeAudio.pause()).catch(() => {});
+  sessionChimeAudio = new Audio(sessionChimeUrl);
+  sessionChimeAudio.volume = 1.0;
+  sessionChimeAudio.play().then(() => sessionChimeAudio.pause()).catch(() => {});
 
   // Switch screens
   setupScreen.classList.add('hidden');
@@ -517,6 +519,7 @@ function completeSession() {
     chip.classList.add('done');
   });
 
+  progressCircle.style.strokeDashoffset = CIRCUMFERENCE;
   pauseBtn.textContent = 'Done';
   pauseBtn.disabled = true;
   overallFill.style.width = '100%';
