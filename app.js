@@ -19,8 +19,10 @@ const sessionCountEl = document.getElementById('session-count');
 // Streak / calendar
 const streakCountEl = document.getElementById('streak-count');
 const bestStreakEl = document.getElementById('best-streak');
+const todayCountEl = document.getElementById('today-count');
 const weekCalendarEl = document.getElementById('week-calendar');
 const cStreakCountEl = document.getElementById('c-streak-count');
+const cTodayCountEl = document.getElementById('c-today-count');
 const cWeekCalendarEl = document.getElementById('c-week-calendar');
 const celebrationMessageEl = document.getElementById('celebration-message');
 const celebrationContinueBtn = document.getElementById('celebration-continue-btn');
@@ -71,13 +73,26 @@ function getMeditatedDays() {
   return JSON.parse(localStorage.getItem('meditationDays') || '[]');
 }
 
+function getTodayCounts() {
+  return JSON.parse(localStorage.getItem('meditationDayCounts') || '{}');
+}
+
+function getTodayCount() {
+  return getTodayCounts()[todayKey()] || 0;
+}
+
 function recordToday() {
+  // Track unique days for streak
   const days = getMeditatedDays();
   const key = todayKey();
   if (!days.includes(key)) {
     days.push(key);
     localStorage.setItem('meditationDays', JSON.stringify(days));
   }
+  // Track per-day session count
+  const counts = getTodayCounts();
+  counts[key] = (counts[key] || 0) + 1;
+  localStorage.setItem('meditationDayCounts', JSON.stringify(counts));
 }
 
 function computeStreak() {
@@ -121,6 +136,7 @@ function getLast7Days() {
 
 function renderCalendar(containerEl) {
   const daySet = new Set(getMeditatedDays());
+  const counts = getTodayCounts();
   containerEl.innerHTML = '';
   getLast7Days().forEach(({ key, label, isToday }) => {
     const col = document.createElement('div');
@@ -130,9 +146,11 @@ function renderCalendar(containerEl) {
     lbl.textContent = label;
     const dot = document.createElement('div');
     dot.className = 'cal-day__dot';
+    const count = counts[key] || 0;
     if (daySet.has(key)) dot.classList.add('meditated');
     if (isToday) dot.classList.add('today');
-    dot.textContent = daySet.has(key) ? '✓' : '';
+    // Show count if multiple sessions, checkmark if 1, empty otherwise
+    dot.textContent = count > 1 ? count : (count === 1 ? '✓' : '');
     col.appendChild(lbl);
     col.appendChild(dot);
     containerEl.appendChild(col);
@@ -142,12 +160,24 @@ function renderCalendar(containerEl) {
 function renderStreakUI() {
   const streak = computeStreak();
   const best = Math.max(computeBestStreak(), streak);
+  const todayCount = getTodayCount();
   streakCountEl.textContent = streak;
   bestStreakEl.textContent = best;
+  // Animate the today counter bump if it just changed
+  const prev = parseInt(todayCountEl.textContent, 10);
+  todayCountEl.textContent = todayCount;
+  if (todayCount > prev) {
+    todayCountEl.classList.remove('bump');
+    void todayCountEl.offsetWidth; // reflow to restart animation
+    todayCountEl.classList.add('bump');
+  }
   renderCalendar(weekCalendarEl);
 }
 
-function getStreakMessage(streak) {
+function getStreakMessage(streak, todayCount = 1) {
+  if (todayCount === 2) return 'Two sessions today. Double the calm 🌊';
+  if (todayCount === 3) return 'Three today. You\'re deeply committed 🙏';
+  if (todayCount >= 4) return `${todayCount} sessions today. Truly dedicated 🏯`;
   if (streak === 1) return 'Great start — day 1 complete!';
   if (streak === 3) return '3 days strong. A habit is forming 🌱';
   if (streak === 7) return "One full week! You're on fire 🔥";
@@ -693,8 +723,10 @@ function completeSession() {
     celebrationScreen.classList.remove('hidden');
 
     const streak = computeStreak();
+    const todayCount = getTodayCount();
     cStreakCountEl.textContent = streak;
-    celebrationMessageEl.textContent = getStreakMessage(streak);
+    cTodayCountEl.textContent = todayCount;
+    celebrationMessageEl.textContent = getStreakMessage(streak, todayCount);
     renderCalendar(cWeekCalendarEl);
     spawnBurst();
   }, 600);
