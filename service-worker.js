@@ -1,10 +1,11 @@
-const CACHE_NAME = 'meditation-v14';
+const CACHE_NAME = 'meditation-v2.4';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
-  './manifest.json'
+  './manifest.json',
+  './icon.png'
 ];
 
 // Install — cache app shell

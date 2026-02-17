@@ -274,8 +274,23 @@ totalMinutesInput.addEventListener('input', () => {
   renderSetup();
 });
 
+totalMinutesInput.addEventListener('blur', () => {
+  const val = parseInt(totalMinutesInput.value, 10);
+  if (!val || val < 1) {
+    const fallback = Math.max(Math.ceil(allocatedSeconds() / 60), 1);
+    totalMinutesInput.value = fallback;
+    totalSeconds = fallback * 60;
+    renderSetup();
+  }
+});
+
 // ===== Setup: interval builder =====
 addIntervalBtn.addEventListener('click', addInterval);
+[intervalMinInput, intervalSecInput, intervalLabelInput].forEach(input => {
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addInterval();
+  });
+});
 
 function addInterval() {
   const mins = parseInt(intervalMinInput.value, 10) || 0;
@@ -313,20 +328,35 @@ function renderSetup() {
   intervals.forEach((iv, i) => {
     const card = document.createElement('div');
     card.className = 'interval-card';
-    card.innerHTML = `
-      <span class="interval-card__info">
-        <span class="interval-card__number">${i + 1}</span>
-        <span class="interval-card__time">${formatTime(iv.seconds)}</span>
-        ${iv.label ? `<span class="interval-card__label">${iv.label}</span>` : ''}
-      </span>
-      <button class="interval-card__delete" data-index="${i}">&times;</button>
-    `;
-    intervalListEl.appendChild(card);
-  });
 
-  // Delete handlers
-  intervalListEl.querySelectorAll('.interval-card__delete').forEach(btn => {
-    btn.addEventListener('click', () => removeInterval(parseInt(btn.dataset.index, 10)));
+    const info = document.createElement('span');
+    info.className = 'interval-card__info';
+
+    const num = document.createElement('span');
+    num.className = 'interval-card__number';
+    num.textContent = i + 1;
+    info.appendChild(num);
+
+    const time = document.createElement('span');
+    time.className = 'interval-card__time';
+    time.textContent = formatTime(iv.seconds);
+    info.appendChild(time);
+
+    if (iv.label) {
+      const lbl = document.createElement('span');
+      lbl.className = 'interval-card__label';
+      lbl.textContent = iv.label;
+      info.appendChild(lbl);
+    }
+
+    const del = document.createElement('button');
+    del.className = 'interval-card__delete';
+    del.textContent = '\u00d7';
+    del.addEventListener('click', () => removeInterval(i));
+
+    card.appendChild(info);
+    card.appendChild(del);
+    intervalListEl.appendChild(card);
   });
 
   // Visual bar
@@ -527,15 +557,14 @@ function completeSession() {
   timerText.textContent = '00:00';
 
   // After a moment, allow reset
+  pauseBtn.removeEventListener('click', togglePause);
   setTimeout(() => {
     pauseBtn.disabled = false;
     pauseBtn.textContent = 'New Session';
-    pauseBtn.onclick = () => {
-      pauseBtn.onclick = null;
-      pauseBtn.removeEventListener('click', togglePause);
+    pauseBtn.addEventListener('click', () => {
       pauseBtn.addEventListener('click', togglePause);
       resetToSetup();
-    };
+    }, { once: true });
   }, 2000);
 }
 
