@@ -19,6 +19,16 @@
     <main>
       <!-- ===== SETUP SCREEN ===== -->
       <div id="setup-screen">
+
+        <!-- ===== PRESETS ===== -->
+        <section class="setup-section presets-section">
+          <div class="presets-header">
+            <h2 class="section-label">Presets</h2>
+            <button id="save-preset-btn" class="save-preset-btn" title="Save current config as preset">+ Save</button>
+          </div>
+          <div id="preset-list" class="preset-list"></div>
+        </section>
+
         <section class="setup-section">
           <h2 class="section-label">Total Duration</h2>
           <label for="total-minutes" class="duration-field-label">Minutes</label>
@@ -123,7 +133,7 @@
     </main>
   </div>
 
-  <p class="version-label">v2.6</p>
+  <p class="version-label">v2.7</p>
   <script src="app.js"></script>
 </body>
 </html>

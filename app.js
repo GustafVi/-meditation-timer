@@ -15,6 +15,8 @@ const intervalBarEl = document.getElementById('interval-bar');
 const startBtn = document.getElementById('start-btn');
 const setupError = document.getElementById('setup-error');
 const sessionCountEl = document.getElementById('session-count');
+const presetListEl = document.getElementById('preset-list');
+const savePresetBtn = document.getElementById('save-preset-btn');
 
 // Streak / calendar
 const streakCountEl = document.getElementById('streak-count');
@@ -202,6 +204,126 @@ function spawnBurst() {
 }
 
 renderStreakUI();
+
+// ===== Presets =====
+const BUILTIN_PRESETS = [
+  {
+    id: 'builtin-quick',
+    name: 'Quick Reset',
+    builtin: true,
+    totalMinutes: 5,
+    intervals: [
+      { seconds: 60, label: 'Breathe in' },
+      { seconds: 120, label: 'Focus' },
+      { seconds: 120, label: 'Release' },
+    ],
+  },
+  {
+    id: 'builtin-morning',
+    name: 'Morning',
+    builtin: true,
+    totalMinutes: 10,
+    intervals: [
+      { seconds: 120, label: 'Body scan' },
+      { seconds: 300, label: 'Breathe' },
+      { seconds: 180, label: 'Intention' },
+    ],
+  },
+  {
+    id: 'builtin-deep',
+    name: 'Deep Focus',
+    builtin: true,
+    totalMinutes: 20,
+    intervals: [
+      { seconds: 120, label: 'Settle' },
+      { seconds: 900, label: 'Deep sit' },
+      { seconds: 180, label: 'Return' },
+    ],
+  },
+];
+
+function getUserPresets() {
+  return JSON.parse(localStorage.getItem('meditationPresets') || '[]');
+}
+
+function saveUserPresets(presets) {
+  localStorage.setItem('meditationPresets', JSON.stringify(presets));
+}
+
+function getAllPresets() {
+  return [...BUILTIN_PRESETS, ...getUserPresets()];
+}
+
+function loadPreset(preset) {
+  totalSeconds = preset.totalMinutes * 60;
+  totalMinutesInput.value = preset.totalMinutes;
+  intervals = preset.intervals.map(iv => ({ ...iv }));
+  showError('');
+  renderSetup();
+  renderPresets(preset.id);
+}
+
+function saveCurrentAsPreset() {
+  if (intervals.length === 0 || remainingToAllocate() !== 0) return;
+  const name = prompt('Name this preset:');
+  if (!name || !name.trim()) return;
+  const userPresets = getUserPresets();
+  const newPreset = {
+    id: `user-${Date.now()}`,
+    name: name.trim(),
+    builtin: false,
+    totalMinutes: totalSeconds / 60,
+    intervals: intervals.map(iv => ({ ...iv })),
+  };
+  userPresets.push(newPreset);
+  saveUserPresets(userPresets);
+  renderPresets(newPreset.id);
+}
+
+function deleteUserPreset(id) {
+  saveUserPresets(getUserPresets().filter(p => p.id !== id));
+  renderPresets(null);
+}
+
+function renderPresets(activeId = null) {
+  presetListEl.innerHTML = '';
+  getAllPresets().forEach(preset => {
+    const chip = document.createElement('div');
+    chip.className = 'preset-chip' + (preset.builtin ? ' builtin' : '');
+    if (preset.id === activeId) chip.classList.add('active');
+
+    const name = document.createElement('span');
+    name.className = 'preset-chip__name';
+    name.textContent = preset.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'preset-chip__meta';
+    meta.textContent = `${preset.totalMinutes}m · ${preset.intervals.length}`;
+
+    chip.appendChild(name);
+    chip.appendChild(meta);
+
+    if (!preset.builtin) {
+      const del = document.createElement('button');
+      del.className = 'preset-chip__delete';
+      del.textContent = '×';
+      del.title = 'Delete preset';
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteUserPreset(preset.id); });
+      chip.appendChild(del);
+    }
+
+    chip.addEventListener('click', () => loadPreset(preset));
+    presetListEl.appendChild(chip);
+  });
+
+  // Save button only enabled when config is fully valid
+  savePresetBtn.disabled = intervals.length === 0 || remainingToAllocate() !== 0;
+}
+
+savePresetBtn.addEventListener('click', saveCurrentAsPreset);
+
+renderPresets();
+
 function formatTime(sec) {
   const m = Math.floor(sec / 60).toString().padStart(2, '0');
   const s = (sec % 60).toString().padStart(2, '0');
@@ -531,6 +653,9 @@ function renderSetup() {
 
   // Start button enabled only when fully allocated
   startBtn.disabled = remaining !== 0 || intervals.length === 0;
+
+  // Keep save preset button in sync
+  if (savePresetBtn) savePresetBtn.disabled = intervals.length === 0 || remaining !== 0;
 }
 
 renderSetup();
