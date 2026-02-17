@@ -739,6 +739,7 @@ celebrationContinueBtn.addEventListener('click', () => {
   pauseBtn.textContent = 'Pause';
   progressCircle.style.strokeDashoffset = 0;
   showError('');
+  renderStreakUI(); // refresh today count + streak on setup screen
   renderSetup();
 });
 
