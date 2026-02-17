@@ -423,6 +423,248 @@ header h1 {
   color: rgba(255, 255, 255, 0.2);
 }
 
+/* ===== STREAK SECTION ===== */
+.streak-section {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+}
+
+.streak-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.streak-flame {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.flame-icon {
+  font-size: 1.4rem;
+  animation: flicker 2s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  50% { transform: scale(1.1) rotate(2deg); }
+}
+
+.streak-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.streak-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.streak-best {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.best-label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.best-number {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ===== WEEK CALENDAR ===== */
+.week-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cal-day__label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.cal-day__dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.cal-day__dot.meditated {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.cal-day__dot.today {
+  border-color: rgba(233, 69, 96, 0.5);
+}
+
+.cal-day__dot.today:not(.meditated) {
+  color: var(--accent);
+}
+
+/* ===== CELEBRATION SCREEN ===== */
+#celebration-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+}
+
+.celebration-inner {
+  text-align: center;
+  width: 100%;
+  position: relative;
+}
+
+.celebration-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.celebration-burst .burst-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: burst-out 0.9s ease-out forwards;
+}
+
+@keyframes burst-out {
+  0%   { transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0px); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateY(120px); opacity: 0; }
+}
+
+.celebration-emoji {
+  font-size: 3.5rem;
+  margin-bottom: 0.5rem;
+  position: relative;
+  z-index: 1;
+  animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.3); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.celebration-title {
+  font-size: 1.6rem;
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+  position: relative;
+  z-index: 1;
+  animation: fade-up 0.5s 0.15s ease both;
+}
+
+.celebration-subtitle {
+  font-size: 0.9rem;
+  color: var(--accent);
+  margin-bottom: 1.25rem;
+  min-height: 1.4em;
+  position: relative;
+  z-index: 1;
+  animation: fade-up 0.5s 0.25s ease both;
+}
+
+@keyframes fade-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.celebration-streak-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 1;
+  animation: fade-up 0.5s 0.35s ease both;
+}
+
+.c-flame { font-size: 1.8rem; }
+
+.c-streak-number {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.c-streak-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  align-self: flex-end;
+  padding-bottom: 0.3rem;
+}
+
+.celebration-calendar {
+  margin: 0 auto 1.5rem;
+  max-width: 320px;
+  position: relative;
+  z-index: 1;
+  animation: fade-up 0.5s 0.45s ease both;
+}
+
+#celebration-continue-btn {
+  position: relative;
+  z-index: 1;
+  animation: fade-up 0.5s 0.55s ease both;
+}
+
 /* Breathing animation during meditation */
 @keyframes breathe {
   0%, 100% { transform: scale(1); opacity: 0.8; }

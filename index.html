@@ -46,6 +46,42 @@
         <div class="session-info">
           <p>Sessions completed: <span id="session-count">0</span></p>
         </div>
+
+        <!-- ===== STREAK & CALENDAR ===== -->
+        <div class="streak-section">
+          <div class="streak-row">
+            <div class="streak-flame">
+              <span class="flame-icon">🔥</span>
+              <span id="streak-count" class="streak-number">0</span>
+              <span class="streak-label">day streak</span>
+            </div>
+            <div class="streak-best">
+              <span class="best-label">Best</span>
+              <span id="best-streak" class="best-number">0</span>
+            </div>
+          </div>
+          <div id="week-calendar" class="week-calendar"></div>
+        </div>
+      </div>
+
+      <!-- ===== CELEBRATION SCREEN ===== -->
+      <div id="celebration-screen" class="hidden">
+        <div class="celebration-inner">
+          <div class="celebration-burst" id="celebration-burst"></div>
+          <div class="celebration-emoji">🧘</div>
+          <h2 class="celebration-title">Session Complete</h2>
+          <p class="celebration-subtitle" id="celebration-message"></p>
+
+          <div class="celebration-streak-row">
+            <span class="c-flame">🔥</span>
+            <span id="c-streak-count" class="c-streak-number">0</span>
+            <span class="c-streak-label">day streak</span>
+          </div>
+
+          <div id="c-week-calendar" class="week-calendar celebration-calendar"></div>
+
+          <button id="celebration-continue-btn" class="control-btn primary">New Session</button>
+        </div>
       </div>
 
       <!-- ===== TIMER SCREEN ===== -->
@@ -78,7 +114,7 @@
     </main>
   </div>
 
-  <p class="version-label">v2.4</p>
+  <p class="version-label">v2.5</p>
   <script src="app.js"></script>
 </body>
 </html>

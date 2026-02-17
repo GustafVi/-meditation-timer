@@ -1,6 +1,7 @@
 // ===== DOM refs =====
 const setupScreen = document.getElementById('setup-screen');
 const timerScreen = document.getElementById('timer-screen');
+const celebrationScreen = document.getElementById('celebration-screen');
 
 // Setup
 const totalMinutesInput = document.getElementById('total-minutes');
@@ -14,6 +15,15 @@ const intervalBarEl = document.getElementById('interval-bar');
 const startBtn = document.getElementById('start-btn');
 const setupError = document.getElementById('setup-error');
 const sessionCountEl = document.getElementById('session-count');
+
+// Streak / calendar
+const streakCountEl = document.getElementById('streak-count');
+const bestStreakEl = document.getElementById('best-streak');
+const weekCalendarEl = document.getElementById('week-calendar');
+const cStreakCountEl = document.getElementById('c-streak-count');
+const cWeekCalendarEl = document.getElementById('c-week-calendar');
+const celebrationMessageEl = document.getElementById('celebration-message');
+const celebrationContinueBtn = document.getElementById('celebration-continue-btn');
 
 // Timer
 const intervalIndicator = document.getElementById('interval-indicator');
@@ -51,7 +61,117 @@ let lastChimedInterval = -1; // track which intervals already chimed
 
 sessionCountEl.textContent = sessions;
 
-// ===== Helpers =====
+// ===== Streak & Calendar Helpers =====
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function getMeditatedDays() {
+  return JSON.parse(localStorage.getItem('meditationDays') || '[]');
+}
+
+function recordToday() {
+  const days = getMeditatedDays();
+  const key = todayKey();
+  if (!days.includes(key)) {
+    days.push(key);
+    localStorage.setItem('meditationDays', JSON.stringify(days));
+  }
+}
+
+function computeStreak() {
+  const days = getMeditatedDays();
+  if (days.length === 0) return 0;
+  const daySet = new Set(days);
+  let streak = 0;
+  const d = new Date();
+  for (let i = 0; i < 365; i++) {
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (daySet.has(key)) { streak++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+function computeBestStreak() {
+  const days = getMeditatedDays().sort();
+  if (days.length === 0) return 0;
+  let best = 1, current = 1;
+  for (let i = 1; i < days.length; i++) {
+    const diff = (new Date(days[i]) - new Date(days[i-1])) / 86400000;
+    if (diff === 1) { current++; best = Math.max(best, current); }
+    else if (diff > 1) { current = 1; }
+  }
+  return best;
+}
+
+function getLast7Days() {
+  const result = [];
+  const today = new Date();
+  const dayNames = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    result.push({ key, label: dayNames[d.getDay()], isToday: i === 0 });
+  }
+  return result;
+}
+
+function renderCalendar(containerEl) {
+  const daySet = new Set(getMeditatedDays());
+  containerEl.innerHTML = '';
+  getLast7Days().forEach(({ key, label, isToday }) => {
+    const col = document.createElement('div');
+    col.className = 'cal-day';
+    const lbl = document.createElement('span');
+    lbl.className = 'cal-day__label';
+    lbl.textContent = label;
+    const dot = document.createElement('div');
+    dot.className = 'cal-day__dot';
+    if (daySet.has(key)) dot.classList.add('meditated');
+    if (isToday) dot.classList.add('today');
+    dot.textContent = daySet.has(key) ? '✓' : '';
+    col.appendChild(lbl);
+    col.appendChild(dot);
+    containerEl.appendChild(col);
+  });
+}
+
+function renderStreakUI() {
+  const streak = computeStreak();
+  const best = Math.max(computeBestStreak(), streak);
+  streakCountEl.textContent = streak;
+  bestStreakEl.textContent = best;
+  renderCalendar(weekCalendarEl);
+}
+
+function getStreakMessage(streak) {
+  if (streak === 1) return 'Great start — day 1 complete!';
+  if (streak === 3) return '3 days strong. A habit is forming 🌱';
+  if (streak === 7) return "One full week! You're on fire 🔥";
+  if (streak === 14) return 'Two weeks of calm. Incredible 💫';
+  if (streak === 30) return '30 days. You\'ve changed yourself 🏆';
+  if (streak % 10 === 0) return `${streak} days. Legendary consistency.`;
+  return `${streak} days in a row. Keep going.`;
+}
+
+function spawnBurst() {
+  const burst = document.getElementById('celebration-burst');
+  burst.innerHTML = '';
+  const colors = ['#e94560','#e9a045','#45e9a0','#4560e9','#e945c4','#fff'];
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'burst-particle';
+    p.style.setProperty('--angle', `${i * 20}deg`);
+    p.style.background = colors[i % colors.length];
+    p.style.animationDelay = `${(Math.random() * 0.2).toFixed(2)}s`;
+    burst.appendChild(p);
+  }
+}
+
+renderStreakUI();
 function formatTime(sec) {
   const m = Math.floor(sec / 60).toString().padStart(2, '0');
   const s = (sec % 60).toString().padStart(2, '0');
@@ -543,6 +663,10 @@ function completeSession() {
   localStorage.setItem('meditationSessions', sessions);
   sessionCountEl.textContent = sessions;
 
+  // Record today and update streak
+  recordToday();
+  renderStreakUI();
+
   // Mark all intervals as done in timeline
   intervalTimeline.querySelectorAll('.timeline-chip').forEach(chip => {
     chip.classList.remove('active');
@@ -550,23 +674,35 @@ function completeSession() {
   });
 
   progressCircle.style.strokeDashoffset = CIRCUMFERENCE;
-  pauseBtn.textContent = 'Done';
-  pauseBtn.disabled = true;
   overallFill.style.width = '100%';
   overallTime.textContent = '00:00';
   timerText.textContent = '00:00';
 
-  // After a moment, allow reset
-  pauseBtn.removeEventListener('click', togglePause);
+  // Show celebration screen after a short delay
   setTimeout(() => {
-    pauseBtn.disabled = false;
-    pauseBtn.textContent = 'New Session';
-    pauseBtn.addEventListener('click', () => {
-      pauseBtn.addEventListener('click', togglePause);
-      resetToSetup();
-    }, { once: true });
-  }, 2000);
+    timerScreen.classList.add('hidden');
+    celebrationScreen.classList.remove('hidden');
+
+    const streak = computeStreak();
+    cStreakCountEl.textContent = streak;
+    celebrationMessageEl.textContent = getStreakMessage(streak);
+    renderCalendar(cWeekCalendarEl);
+    spawnBurst();
+  }, 600);
 }
+
+celebrationContinueBtn.addEventListener('click', () => {
+  celebrationScreen.classList.add('hidden');
+  setupScreen.classList.remove('hidden');
+  // Re-wire pause button for next session
+  pauseBtn.disabled = false;
+  pauseBtn.textContent = 'Pause';
+  pauseBtn.removeEventListener('click', togglePause);
+  pauseBtn.addEventListener('click', togglePause);
+  progressCircle.style.strokeDashoffset = 0;
+  showError('');
+  renderSetup();
+});
 
 // ===== iOS screen wake recovery =====
 // When iOS suspends the page and the user wakes the screen,
