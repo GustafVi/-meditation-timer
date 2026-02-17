@@ -100,7 +100,7 @@ function computeBestStreak() {
   let best = 1, current = 1;
   for (let i = 1; i < days.length; i++) {
     const diff = (new Date(days[i]) - new Date(days[i-1])) / 86400000;
-    if (diff === 1) { current++; best = Math.max(best, current); }
+    if (diff === 1) { current++; if (current > best) best = current; }
     else if (diff > 1) { current = 1; }
   }
   return best;
@@ -613,7 +613,12 @@ function highlightTimeline() {
 }
 
 // ===== Pause / Reset =====
-pauseBtn.addEventListener('click', togglePause);
+// Single stable listener — always attached, reads state at call time
+pauseBtn.addEventListener('click', () => {
+  if (pauseBtn.dataset.action === 'toggle') togglePause();
+});
+pauseBtn.dataset.action = 'toggle';
+
 resetBtn.addEventListener('click', resetToSetup);
 
 function togglePause() {
@@ -645,7 +650,10 @@ function resetToSetup() {
   timerDisplay.classList.remove('active');
   progressCircle.style.strokeDashoffset = 0;
   timerScreen.classList.add('hidden');
+  celebrationScreen.classList.add('hidden');
   setupScreen.classList.remove('hidden');
+  pauseBtn.dataset.action = 'toggle';
+  pauseBtn.textContent = 'Pause';
   showError('');
   renderSetup();
 }
@@ -677,6 +685,7 @@ function completeSession() {
   overallFill.style.width = '100%';
   overallTime.textContent = '00:00';
   timerText.textContent = '00:00';
+  pauseBtn.dataset.action = ''; // disable pause btn during celebration transition
 
   // Show celebration screen after a short delay
   setTimeout(() => {
@@ -694,11 +703,8 @@ function completeSession() {
 celebrationContinueBtn.addEventListener('click', () => {
   celebrationScreen.classList.add('hidden');
   setupScreen.classList.remove('hidden');
-  // Re-wire pause button for next session
-  pauseBtn.disabled = false;
+  pauseBtn.dataset.action = 'toggle'; // re-enable pause for next session
   pauseBtn.textContent = 'Pause';
-  pauseBtn.removeEventListener('click', togglePause);
-  pauseBtn.addEventListener('click', togglePause);
   progressCircle.style.strokeDashoffset = 0;
   showError('');
   renderSetup();
