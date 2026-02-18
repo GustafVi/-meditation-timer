@@ -54,6 +54,22 @@
         <p id="setup-error" class="setup-error"></p>
 
         <div class="session-info">
+          <svg id="weather-icon" class="weather-icon" data-weather="storm" viewBox="0 0 44 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <g class="wi-sun">
+              <circle cx="22" cy="12" r="6"/>
+              <line x1="22" y1="0" x2="22" y2="4" stroke-linecap="round"/>
+              <line x1="22" y1="20" x2="22" y2="24" stroke-linecap="round"/>
+              <line x1="8" y1="12" x2="12" y2="12" stroke-linecap="round"/>
+              <line x1="32" y1="12" x2="36" y2="12" stroke-linecap="round"/>
+              <line x1="13.5" y1="3.5" x2="16.3" y2="6.3" stroke-linecap="round"/>
+              <line x1="27.7" y1="17.7" x2="30.5" y2="20.5" stroke-linecap="round"/>
+              <line x1="30.5" y1="3.5" x2="27.7" y2="6.3" stroke-linecap="round"/>
+              <line x1="13.5" y1="20.5" x2="16.3" y2="17.7" stroke-linecap="round"/>
+            </g>
+            <g class="wi-cloud">
+              <path d="M4,22 Q4,16 10,16 Q11,10 18,11 Q24,8 29,14 Q35,12 36,18 Q40,18 40,22 Q40,26 36,26 L8,26 Q4,26 4,22 Z"/>
+            </g>
+          </svg>
           <p>Sessions completed: <span id="session-count">0</span></p>
         </div>
 
@@ -133,7 +149,7 @@
     </main>
   </div>
 
-  <p class="version-label">v2.7</p>
+  <p class="version-label">v2.8</p>
   <script src="app.js"></script>
 </body>
 </html>

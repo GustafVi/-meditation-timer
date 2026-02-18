@@ -50,13 +50,23 @@ const SEGMENT_COLORS = [
   '#45e9a0', '#4560e9', '#e945c4', '#60e945',
 ];
 
+// ===== localStorage helpers (safe in Safari Private Browsing / quota exceeded) =====
+function lsGet(key, fallback) {
+  try { return localStorage.getItem(key) ?? fallback; }
+  catch { return fallback; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); }
+  catch { /* quota exceeded or private mode — silently skip */ }
+}
+
 // ===== State =====
 let totalSeconds = 10 * 60; // default 10 min
 let intervals = [];          // { seconds, label }
 let currentIntervalIndex = 0;
 let timerInterval = null;
 let isRunning = false;
-let sessions = parseInt(localStorage.getItem('meditationSessions') || '0', 10);
+let sessions = parseInt(lsGet('meditationSessions', '0'), 10);
 
 // Timestamp-based tracking (survives iOS screen lock)
 let sessionStartTime = 0;   // Date.now() when session started
@@ -65,6 +75,17 @@ let lastChimedInterval = -1; // track which intervals already chimed
 
 sessionCountEl.textContent = sessions;
 
+// ===== Weather icon =====
+function updateWeatherIcon(count) {
+  const icon = document.getElementById('weather-icon');
+  if (!icon) return;
+  if (count === 0) icon.dataset.weather = 'storm';
+  else if (count === 1) icon.dataset.weather = 'cloudy';
+  else icon.dataset.weather = 'sunny';
+}
+
+updateWeatherIcon(sessions);
+
 // ===== Streak & Calendar Helpers =====
 function todayKey() {
   const d = new Date();
@@ -72,11 +93,11 @@ function todayKey() {
 }
 
 function getMeditatedDays() {
-  return JSON.parse(localStorage.getItem('meditationDays') || '[]');
+  return JSON.parse(lsGet('meditationDays', '[]'));
 }
 
 function getTodayCounts() {
-  return JSON.parse(localStorage.getItem('meditationDayCounts') || '{}');
+  return JSON.parse(lsGet('meditationDayCounts', '{}'));
 }
 
 function getTodayCount() {
@@ -89,12 +110,12 @@ function recordToday() {
   const key = todayKey();
   if (!days.includes(key)) {
     days.push(key);
-    localStorage.setItem('meditationDays', JSON.stringify(days));
+    lsSet('meditationDays', JSON.stringify(days));
   }
   // Track per-day session count
   const counts = getTodayCounts();
   counts[key] = (counts[key] || 0) + 1;
-  localStorage.setItem('meditationDayCounts', JSON.stringify(counts));
+  lsSet('meditationDayCounts', JSON.stringify(counts));
 }
 
 function computeStreak() {
@@ -116,7 +137,7 @@ function computeBestStreak() {
   if (days.length === 0) return 0;
   let best = 1, current = 1;
   for (let i = 1; i < days.length; i++) {
-    const diff = (new Date(days[i]) - new Date(days[i-1])) / 86400000;
+    const diff = (Date.UTC(...days[i].split('-')) - Date.UTC(...days[i-1].split('-'))) / 86400000;
     if (diff === 1) { current++; if (current > best) best = current; }
     else if (diff > 1) { current = 1; }
   }
@@ -243,11 +264,11 @@ const BUILTIN_PRESETS = [
 ];
 
 function getUserPresets() {
-  return JSON.parse(localStorage.getItem('meditationPresets') || '[]');
+  return JSON.parse(lsGet('meditationPresets', '[]'));
 }
 
 function saveUserPresets(presets) {
-  localStorage.setItem('meditationPresets', JSON.stringify(presets));
+  lsSet('meditationPresets', JSON.stringify(presets));
 }
 
 function getAllPresets() {
@@ -664,6 +685,7 @@ renderSetup();
 startBtn.addEventListener('click', startSession);
 
 function startSession() {
+  if (isRunning) return;
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
 
   // Create and prime chime Audio elements from user gesture (required by iOS)
@@ -799,6 +821,7 @@ function togglePause() {
 function resetToSetup() {
   clearInterval(timerInterval);
   isRunning = false;
+  lastChimedInterval = -1;
   cancelScheduledChimes();
   stopKeepAlive();
   clearMediaSession();
@@ -823,8 +846,9 @@ function completeSession() {
   highlightTimeline();
 
   sessions++;
-  localStorage.setItem('meditationSessions', sessions);
+  lsSet('meditationSessions', String(sessions));
   sessionCountEl.textContent = sessions;
+  updateWeatherIcon(sessions);
 
   // Record today and update streak
   recordToday();
@@ -908,5 +932,6 @@ document.addEventListener('visibilitychange', () => {
 
 // ===== Service Worker =====
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
+  navigator.serviceWorker.register('service-worker.js')
+    .catch(err => console.warn('SW registration failed:', err));
 }

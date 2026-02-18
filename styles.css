@@ -410,8 +410,66 @@ header h1 {
 
 /* Session Info */
 .session-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
   color: var(--text-secondary);
   font-size: 0.85rem;
+}
+
+/* ===== WEATHER ICON ===== */
+.weather-icon {
+  width: 44px;
+  height: 30px;
+  overflow: visible;
+}
+
+/* Sun group */
+.wi-sun {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.wi-sun circle {
+  fill: #f5c842;
+  stroke: none;
+}
+
+.wi-sun line {
+  stroke: #f5c842;
+  stroke-width: 2.5;
+  fill: none;
+}
+
+/* Cloud group */
+.wi-cloud {
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+.wi-cloud path {
+  stroke: none;
+  transition: fill 0.6s ease;
+}
+
+/* 0 sessions — dark storm cloud */
+.weather-icon[data-weather="storm"] .wi-cloud path {
+  fill: #2d3270;
+}
+
+/* 1 session — grey cloud */
+.weather-icon[data-weather="cloudy"] .wi-cloud path {
+  fill: #8890b8;
+}
+
+/* 2+ sessions — sun */
+.weather-icon[data-weather="sunny"] .wi-cloud {
+  opacity: 0;
+}
+
+.weather-icon[data-weather="sunny"] .wi-sun {
+  opacity: 1;
 }
 
 /* Version label */
