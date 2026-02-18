@@ -740,6 +740,18 @@ function renderSetup() {
 
 renderSetup();
 
+// ===== Screen transitions =====
+function switchScreen(from, to) {
+  from.classList.add('screen-leaving');
+  setTimeout(() => {
+    from.classList.add('hidden');
+    from.classList.remove('screen-leaving');
+    to.classList.remove('hidden');
+    to.classList.add('screen-entering');
+    to.addEventListener('animationend', () => to.classList.remove('screen-entering'), { once: true });
+  }, 230);
+}
+
 // ===== Start session =====
 startBtn.addEventListener('click', startSession);
 
@@ -757,8 +769,7 @@ function startSession() {
   sessionChimeAudio.play().then(() => sessionChimeAudio.pause()).catch(() => {});
 
   // Switch screens
-  setupScreen.classList.add('hidden');
-  timerScreen.classList.remove('hidden');
+  switchScreen(setupScreen, timerScreen);
 
   currentIntervalIndex = 0;
   lastChimedInterval = -1;
@@ -886,9 +897,8 @@ function resetToSetup() {
   clearMediaSession();
   timerDisplay.classList.remove('active');
   progressCircle.style.strokeDashoffset = 0;
-  timerScreen.classList.add('hidden');
   celebrationScreen.classList.add('hidden');
-  setupScreen.classList.remove('hidden');
+  switchScreen(timerScreen, setupScreen);
   pauseBtn.dataset.action = 'toggle';
   pauseBtn.textContent = 'Pause';
   showError('');
@@ -927,8 +937,7 @@ function completeSession() {
 
   // Show celebration screen after a short delay
   setTimeout(() => {
-    timerScreen.classList.add('hidden');
-    celebrationScreen.classList.remove('hidden');
+    switchScreen(timerScreen, celebrationScreen);
 
     const streak = computeStreak();
     const todayCount = getTodayCount();
@@ -941,8 +950,7 @@ function completeSession() {
 }
 
 celebrationContinueBtn.addEventListener('click', () => {
-  celebrationScreen.classList.add('hidden');
-  setupScreen.classList.remove('hidden');
+  switchScreen(celebrationScreen, setupScreen);
   pauseBtn.dataset.action = 'toggle'; // re-enable pause for next session
   pauseBtn.textContent = 'Pause';
   progressCircle.style.strokeDashoffset = 0;
