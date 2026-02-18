@@ -84,7 +84,7 @@ function updateWeatherIcon(count) {
   else icon.dataset.weather = 'sunny';
 }
 
-updateWeatherIcon(sessions);
+updateWeatherIcon(getTodayCount());
 
 // ===== Streak & Calendar Helpers =====
 function todayKey() {
@@ -848,10 +848,10 @@ function completeSession() {
   sessions++;
   lsSet('meditationSessions', String(sessions));
   sessionCountEl.textContent = sessions;
-  updateWeatherIcon(sessions);
 
   // Record today and update streak
   recordToday();
+  updateWeatherIcon(getTodayCount());
   renderStreakUI();
 
   // Mark all intervals as done in timeline
