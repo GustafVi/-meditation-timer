@@ -60,6 +60,65 @@ function lsSet(key, value) {
   catch { /* quota exceeded or private mode — silently skip */ }
 }
 
+// ===== Data migration =====
+// Bump DATA_VERSION and add a migrateToVN() function for every schema change.
+// runMigrations() is called once at startup, before any data is read.
+const DATA_VERSION = 1;
+
+function migrateToV1() {
+  // v0 → v1: validate and normalise all keys written by earlier app versions.
+  // Safe for brand-new installs (all lsGet calls return the fallback).
+
+  // meditationSessions — must be a non-negative integer string
+  const n = parseInt(lsGet('meditationSessions', '0'), 10);
+  lsSet('meditationSessions', String(isNaN(n) || n < 0 ? 0 : n));
+
+  // meditationDays — sorted, deduped array of YYYY-MM-DD strings
+  try {
+    const raw = JSON.parse(lsGet('meditationDays', '[]'));
+    const days = Array.isArray(raw) ? raw : [];
+    const valid = [...new Set(days)]
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort();
+    lsSet('meditationDays', JSON.stringify(valid));
+  } catch {
+    lsSet('meditationDays', '[]');
+  }
+
+  // meditationDayCounts — object keyed by YYYY-MM-DD with positive integer values
+  try {
+    const raw = JSON.parse(lsGet('meditationDayCounts', '{}'));
+    const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+    const clean = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(k) && Number.isInteger(v) && v > 0) clean[k] = v;
+    }
+    lsSet('meditationDayCounts', JSON.stringify(clean));
+  } catch {
+    lsSet('meditationDayCounts', '{}');
+  }
+
+  // meditationPresets — array (contents validated when loaded)
+  try {
+    const raw = JSON.parse(lsGet('meditationPresets', '[]'));
+    lsSet('meditationPresets', JSON.stringify(Array.isArray(raw) ? raw : []));
+  } catch {
+    lsSet('meditationPresets', '[]');
+  }
+}
+
+function runMigrations() {
+  const stored = parseInt(lsGet('meditationDataVersion', '0'), 10);
+  if (stored >= DATA_VERSION) return;
+
+  if (stored < 1) migrateToV1();
+  // if (stored < 2) migrateToV2();  // add future migrations here
+
+  lsSet('meditationDataVersion', String(DATA_VERSION));
+}
+
+runMigrations();
+
 // ===== State =====
 let totalSeconds = 10 * 60; // default 10 min
 let intervals = [];          // { seconds, label }
