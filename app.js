@@ -800,14 +800,18 @@ function startSession() {
   if (isRunning) return;
   if (intervals.length === 0 || remainingToAllocate() !== 0) return;
 
-  // Create and prime chime Audio elements from user gesture (required by iOS)
+  // Create and prime chime Audio elements from user gesture (required by iOS).
+  // We unlock the audio context via the ambient loop — do NOT play+pause the
+  // real chime elements here, because .then() fires when playback *starts* (not ends),
+  // which would immediately cut off longer sounds like the 6-second gong.
   unlockAudio();
   intervalChimeAudio = new Audio(intervalChimeUrl);
   intervalChimeAudio.volume = 1.0;
-  intervalChimeAudio.play().then(() => intervalChimeAudio.pause()).catch(() => {});
   sessionChimeAudio = new Audio(sessionChimeUrl);
   sessionChimeAudio.volume = 1.0;
-  sessionChimeAudio.play().then(() => sessionChimeAudio.pause()).catch(() => {});
+  // Prime both elements by loading them (avoids first-play latency on iOS)
+  intervalChimeAudio.load();
+  sessionChimeAudio.load();
 
   // Switch screens
   switchScreen(setupScreen, timerScreen);
