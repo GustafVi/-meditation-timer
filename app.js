@@ -132,6 +132,26 @@ let sessionStartTime = 0;   // Date.now() when session started
 let pausedElapsed = 0;       // total ms elapsed before last pause
 let lastChimedInterval = -1; // track which intervals already chimed
 
+// ===== Wake Lock =====
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return; // not supported — silently skip
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch {
+    // Permission denied or other error — silently skip
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+  }
+}
+
 sessionCountEl.textContent = sessions;
 
 // ===== Weather icon =====
@@ -781,6 +801,7 @@ function startSession() {
   startKeepAlive();
   scheduleAllChimes();
   setupMediaSession();
+  requestWakeLock();
 
   renderTimeline();
   tick(); // render immediately
@@ -895,6 +916,7 @@ function resetToSetup() {
   cancelScheduledChimes();
   stopKeepAlive();
   clearMediaSession();
+  releaseWakeLock();
   timerDisplay.classList.remove('active');
   progressCircle.style.strokeDashoffset = 0;
   celebrationScreen.classList.add('hidden');
@@ -911,6 +933,7 @@ function completeSession() {
   isRunning = false;
   cancelScheduledChimes();
   clearMediaSession();
+  releaseWakeLock();
   timerDisplay.classList.remove('active');
   highlightTimeline();
 
@@ -971,6 +994,9 @@ document.addEventListener('visibilitychange', () => {
       tick(); // will trigger completeSession
       return;
     }
+
+    // Re-acquire wake lock if it was released while the page was hidden
+    if (!wakeLock) requestWakeLock();
 
     // Play missed interval chimes
     let accumulated = 0;
