@@ -472,47 +472,68 @@ function writeWavHeader(view, sampleRate, numSamples) {
   view.setUint32(40, dataSize, true);
 }
 
-// Generate the interval chime: E5 sine, 0.8s with decay
+// Generate the interval chime: singing bowl with soft attack, harmonics, long resonant decay
 function generateIntervalChimeWav() {
   const sampleRate = 44100;
-  const duration = 0.8;
+  const duration = 3.0;
   const numSamples = Math.ceil(sampleRate * duration);
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
   writeWavHeader(view, sampleRate, numSamples);
+
+  // Fundamental + slightly inharmonic partials (natural bowl character)
+  const fundamental = 432.0; // A4 at 432hz — warmer than standard 440
+  const harmonics = [
+    { freq: fundamental,        amp: 0.55, decay: 1.8 },
+    { freq: fundamental * 2.76, amp: 0.25, decay: 2.8 }, // slightly inharmonic 2nd partial
+    { freq: fundamental * 5.1,  amp: 0.10, decay: 1.2 }, // higher partial fades faster
+  ];
+  const attackTime = 0.025; // 25ms soft attack
+
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
-    const amp = 0.18 * Math.exp(-3.5 * t);
-    const sample = amp * Math.sin(2 * Math.PI * 659.25 * t);
+    const attack = Math.min(t / attackTime, 1.0);
+    let sample = 0;
+    for (const h of harmonics) {
+      sample += h.amp * Math.exp(-h.decay * t) * Math.sin(2 * Math.PI * h.freq * t);
+    }
+    sample *= attack * 0.38; // moderate, calm volume
     view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sample * 32767)), true);
   }
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
 
-// Generate the session-complete chime: C5-E5-G5 arpeggio
+// Generate the session-complete sound: deep gong with slow bloom and long resonant tail
 function generateSessionChimeWav() {
   const sampleRate = 44100;
-  const freqs = [523.25, 659.25, 783.99];
-  const noteSpacing = 0.3;
-  const noteDuration = 2.0;
-  const totalDuration = noteSpacing * (freqs.length - 1) + noteDuration;
-  const numSamples = Math.ceil(sampleRate * totalDuration);
+  const duration = 6.0; // long enough for the bloom to fully unfold
+  const numSamples = Math.ceil(sampleRate * duration);
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
   writeWavHeader(view, sampleRate, numSamples);
+
+  // Deep gong: low fundamental with rich inharmonic partials
+  // Real gongs have complex inharmonic spectra — these ratios approximate that
+  const fundamental = 110.0; // A2 — deep, chest-resonant
+  const partials = [
+    { freq: fundamental,        amp: 0.50, decay: 0.6,  attackTime: 0.04 },
+    { freq: fundamental * 2.21, amp: 0.35, decay: 0.9,  attackTime: 0.06 }, // 2nd inharmonic
+    { freq: fundamental * 3.60, amp: 0.20, decay: 1.4,  attackTime: 0.10 }, // mid partial
+    { freq: fundamental * 5.40, amp: 0.12, decay: 2.0,  attackTime: 0.15 }, // upper shimmer
+    { freq: fundamental * 8.93, amp: 0.06, decay: 2.8,  attackTime: 0.20 }, // high shimmer
+  ];
+
+  // Amplitude envelope: fast strike bloom then slow exponential decay
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     let sample = 0;
-    for (let n = 0; n < freqs.length; n++) {
-      const noteStart = n * noteSpacing;
-      if (t >= noteStart && t < noteStart + noteDuration) {
-        const noteT = t - noteStart;
-        const amp = 0.15 * Math.exp(-1.5 * noteT);
-        sample += amp * Math.sin(2 * Math.PI * freqs[n] * noteT);
-      }
+    for (const p of partials) {
+      const attack = Math.min(t / p.attackTime, 1.0);
+      // Each partial has its own attack and decay — upper partials emerge slowly
+      sample += p.amp * attack * Math.exp(-p.decay * t) * Math.sin(2 * Math.PI * p.freq * t);
     }
-    sample = Math.max(-1, Math.min(1, sample));
-    view.setInt16(44 + i * 2, sample * 32767, true);
+    sample *= 0.55; // prominent but not harsh
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sample * 32767)), true);
   }
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
