@@ -2,154 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="A simple meditation timer PWA">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#06051a">
   <title>Meditation Timer</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="app">
-    <header>
-      <h1>Meditation Timer</h1>
-    </header>
-
-    <main>
-      <!-- ===== SETUP SCREEN ===== -->
-      <div id="setup-screen">
-
-        <!-- ===== PRESETS ===== -->
-        <section class="setup-section presets-section">
-          <div class="presets-header">
-            <h2 class="section-label">Presets</h2>
-            <button id="save-preset-btn" class="save-preset-btn" title="Save current config as preset">+ Save</button>
-          </div>
-          <div id="preset-list" class="preset-list"></div>
-        </section>
-
-        <section class="setup-section">
-          <h2 class="section-label">Total Duration</h2>
-          <label for="total-minutes" class="duration-field-label">Minutes</label>
-          <input type="number" id="total-minutes" min="1" max="180" value="10" class="duration-input">
-        </section>
-
-        <section class="setup-section">
-          <h2 class="section-label">Intervals <span id="remaining-time" class="remaining-badge">10:00 remaining</span></h2>
-          <div class="interval-add-row">
-            <input type="number" id="interval-minutes" min="0" max="180" placeholder="Min" class="interval-input">
-            <span class="interval-input-sep">:</span>
-            <input type="number" id="interval-seconds" min="0" max="59" placeholder="Sec" class="interval-input">
-            <input type="text" id="interval-label" placeholder="Label (optional)" class="interval-label-input">
-            <button id="add-interval-btn" class="control-btn accent-sm">Add</button>
-          </div>
-          <div id="interval-list" class="interval-list"></div>
-          <div id="interval-bar" class="interval-bar"></div>
-        </section>
-
-        <div class="controls">
-          <button id="start-btn" class="control-btn primary" disabled>Start</button>
-        </div>
-        <p id="setup-error" class="setup-error"></p>
-
-        <div class="session-info">
-          <svg id="weather-icon" class="weather-icon" data-weather="storm" viewBox="0 0 44 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <g class="wi-sun">
-              <circle cx="22" cy="12" r="6"/>
-              <line x1="22" y1="0" x2="22" y2="4" stroke-linecap="round"/>
-              <line x1="22" y1="20" x2="22" y2="24" stroke-linecap="round"/>
-              <line x1="8" y1="12" x2="12" y2="12" stroke-linecap="round"/>
-              <line x1="32" y1="12" x2="36" y2="12" stroke-linecap="round"/>
-              <line x1="13.5" y1="3.5" x2="16.3" y2="6.3" stroke-linecap="round"/>
-              <line x1="27.7" y1="17.7" x2="30.5" y2="20.5" stroke-linecap="round"/>
-              <line x1="30.5" y1="3.5" x2="27.7" y2="6.3" stroke-linecap="round"/>
-              <line x1="13.5" y1="20.5" x2="16.3" y2="17.7" stroke-linecap="round"/>
-            </g>
-            <g class="wi-cloud">
-              <path d="M4,22 Q4,16 10,16 Q11,10 18,11 Q24,8 29,14 Q35,12 36,18 Q40,18 40,22 Q40,26 36,26 L8,26 Q4,26 4,22 Z"/>
-            </g>
-          </svg>
-          <p>Sessions completed: <span id="session-count">0</span></p>
-        </div>
-
-        <!-- ===== STREAK & CALENDAR ===== -->
-        <div class="streak-section">
-          <div class="streak-row">
-            <div class="streak-flame">
-              <span class="flame-icon">🔥</span>
-              <span id="streak-count" class="streak-number">0</span>
-              <span class="streak-label">day streak</span>
-            </div>
-            <div class="streak-right">
-              <div class="today-count-badge">
-                <span id="today-count" class="today-count-number">0</span>
-                <span class="today-count-label">today</span>
-              </div>
-              <div class="streak-best">
-                <span class="best-label">Best</span>
-                <span id="best-streak" class="best-number">0</span>
-              </div>
-            </div>
-          </div>
-          <div id="week-calendar" class="week-calendar"></div>
-        </div>
-      </div>
-
-      <!-- ===== CELEBRATION SCREEN ===== -->
-      <div id="celebration-screen" class="hidden">
-        <div class="celebration-inner">
-          <div class="celebration-burst" id="celebration-burst"></div>
-          <div class="celebration-emoji">🧘</div>
-          <h2 class="celebration-title">Session Complete</h2>
-          <p class="celebration-subtitle" id="celebration-message"></p>
-
-          <div class="celebration-streak-row">
-            <span class="c-flame">🔥</span>
-            <span id="c-streak-count" class="c-streak-number">0</span>
-            <span class="c-streak-label">day streak</span>
-            <span class="c-divider">·</span>
-            <span id="c-today-count" class="c-today-number">1</span>
-            <span class="c-streak-label">today</span>
-          </div>
-
-          <div id="c-week-calendar" class="week-calendar celebration-calendar"></div>
-
-          <button id="celebration-continue-btn" class="control-btn primary">New Session</button>
-        </div>
-      </div>
-
-      <!-- ===== TIMER SCREEN ===== -->
-      <div id="timer-screen" class="hidden">
-        <p id="interval-indicator" class="interval-indicator">Interval 1 of 1</p>
-        <p id="interval-name" class="interval-name"></p>
-
-        <div class="timer-display">
-          <svg class="progress-ring" viewBox="0 0 200 200">
-            <circle class="progress-ring__bg" cx="100" cy="100" r="90" />
-            <circle class="progress-ring__circle" cx="100" cy="100" r="90" />
-          </svg>
-          <span id="timer-text">00:00</span>
-        </div>
-
-        <div class="overall-progress-wrap">
-          <div class="overall-progress-bar">
-            <div id="overall-progress-fill" class="overall-progress-fill"></div>
-          </div>
-          <span id="overall-time" class="overall-time"></span>
-        </div>
-
-        <div id="interval-timeline" class="interval-timeline"></div>
-
-        <div class="controls">
-          <button id="pause-btn" class="control-btn primary">Pause</button>
-          <button id="reset-btn" class="control-btn secondary">Reset</button>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <p class="version-label">v3.1</p>
-  <script src="app.js"></script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
