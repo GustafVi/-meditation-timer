@@ -59,15 +59,13 @@
       <circle
         class="progress-ring__circle"
         cx="100" cy="100" r="90"
-        stroke-dasharray={CIRCUMFERENCE}
-        stroke-dashoffset={CIRCUMFERENCE * (1 - fraction)}
+        style="stroke-dasharray: {CIRCUMFERENCE}; stroke-dashoffset: {CIRCUMFERENCE * (1 - fraction)};"
       />
     {:else}
       <circle
         class="progress-ring__circle"
         cx="100" cy="100" r="90"
-        stroke-dasharray={CIRCUMFERENCE}
-        stroke-dashoffset={0}
+        style="stroke-dasharray: {CIRCUMFERENCE}; stroke-dashoffset: 0;"
       />
     {/if}
   </svg>
